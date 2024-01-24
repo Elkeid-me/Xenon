@@ -22,6 +22,7 @@ fn code_fun(c: char) -> (State, Option<char>, Option<char>) {
 }
 fn code_with_back_slash_fun(c: char) -> (State, Option<char>, Option<char>) {
     match c {
+        '\\' => (State::CodeWithBackSlash, Some('\\'), None),
         '\n' => (State::Code, None, None),
         _ => (State::Code, Some('\\'), Some(c)),
     }
@@ -59,8 +60,11 @@ fn cxx_comment_fun(c: char) -> (State, Option<char>, Option<char>) {
         _ => (State::CxxComment, None, None),
     }
 }
-fn cxx_comment_with_back_slash_fun(_c: char) -> (State, Option<char>, Option<char>) {
-    (State::CxxComment, None, None)
+fn cxx_comment_with_back_slash_fun(c: char) -> (State, Option<char>, Option<char>) {
+    match c {
+        '\\' => (State::CxxCommentWithBackSlash, None, None),
+        _ => (State::CxxComment, None, None),
+    }
 }
 fn comment_with_star_fun(c: char) -> (State, Option<char>, Option<char>) {
     match c {
