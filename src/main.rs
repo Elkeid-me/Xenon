@@ -1,6 +1,10 @@
-use std::io::Result;
+mod arg_parse;
+mod frontend;
+mod preprocessor;
 
-fn main() -> Result<()> {
-    println!("Hello, world!");
-    Ok(())
+fn compile() {
+    todo!()
+}
+fn main() {
+    todo!()
 }
