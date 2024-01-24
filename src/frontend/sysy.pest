@@ -1,0 +1,22 @@
+WHITESPACE = _{ " " | "\t" | NEWLINE }
+identifier = @{ (ASCII_ALPHA | "_") ~ ASCII_ALPHANUMERIC* }
+
+translation_unit = _{ SOI ~ decl* ~ EOI }
+
+decl = _{ function_decl | const_decl | var_decl }
+
+function_decl = { signature ~ block }
+signature     = { "int" ~ identifier ~ "(" ~ arg_list ~ ")" }
+arg_list      = { "" }
+
+const_decl = { "const" ~ "int" ~ def ~ ("," ~ def)* }
+def        = { identifier ~ "=" ~ exp }
+var_decl   = { "int" ~ identifier }
+
+exp              = { "1" | "0" }
+return_statement = { "return" ~ exp ~ ";" }
+while_statement  = { "while" ~ "(" ~ exp ~ ")" ~ (statement | block) }
+if_statement     = { "if" ~ "(" ~ exp ~ ")" ~ (statement | block) ~ ("else" ~ (statement | block))? }
+
+block     =  { "{" ~ statement* ~ "}" }
+statement = _{ ((const_decl | var_decl | exp) ~ ";") | return_statement | while_statement | if_statement }
