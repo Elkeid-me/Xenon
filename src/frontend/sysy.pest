@@ -5,25 +5,45 @@ translation_unit = _{ SOI ~ decl* ~ EOI }
 
 decl = _{ function_decl | const_declaration | variable_declaration }
 
-function_decl = { signature ~ block }
-signature     = { "int" ~ identifier ~ "(" ~ arg_list ~ ")" }
-arg_list      = { "" }
+function_decl       = { signature ~ block }
+signature           = { "int" ~ identifier ~ "(" ~ paramete_list ~ ")" }
+paramete_list       = { paramete_defination ~ ("," ~ paramete_defination)* | "void" | "" }
+paramete_defination = { "int" ~ identifier }
 
 const_declaration    = { ("const" ~ "int" | "int" ~ "const") ~ const_defination ~ ("," ~ const_defination)* }
 const_defination     = { identifier ~ "=" ~ expression }
 variable_declaration = { "int" ~ variable_defination ~ ("," ~ variable_defination)* }
 variable_defination  = { identifier ~ ("=" ~ expression)? }
 
-atom            = _{ integer_hex | integer_bin | integer_oct | integer_dec | function_call | "(" ~ expression ~ ")" }
-binary_operator = _{ logic_or | logic_and | add | subtract | multiply | divide }
-logic_or        =  { "||" }
-logic_and       =  { "&&" }
-add             =  { "+" }
-subtract        =  { "-" }
-multiply        =  { "*" }
-divide          =  { "/" }
-expression      =  { atom ~ (binary_operator ~ atom)* }
-function_call   =  { identifier ~ "(" ~ (expression ~ ("," ~ expression)*)? ~ ")" }
+primary = _{ integer_hex | integer_bin | integer_oct | integer_dec | function_call | identifier | "(" ~ expression ~ ")" }
+atom    = _{ prefix_operator* ~ primary ~ postfix_operator* }
+
+postfix_operator      = _{ postfix_self_increase | postfix_self_decrease }
+postfix_self_increase =  { "++" }
+postfix_self_decrease =  { "--" }
+
+prefix_operator      = _{ prefix_self_increase | prefix_self_decrease | logic_not | negative | positive | address_of | indirection }
+prefix_self_increase =  { "++" }
+prefix_self_decrease =  { "--" }
+logic_not            =  { "!" }
+negative             =  { "-" }
+positive             =  { "+" }
+address_of           =  { "&" }
+indirection          =  { "*" }
+
+infix_operator = _{ multiply | divide | modulus | add | subtract | logic_and | logic_or | assign }
+multiply       =  { "*" }
+divide         =  { "/" }
+modulus        =  { "%" }
+add            =  { "+" }
+subtract       =  { "-" }
+logic_and      =  { "&&" }
+logic_or       =  { "||" }
+assign         =  { "=" }
+
+expression    = { atom ~ (infix_operator ~ atom)* }
+function_call = { identifier ~ "(" ~ argument_list? ~ ")" }
+argument_list = { expression ~ ("," ~ expression)* }
 
 return_statement = { "return" ~ expression ~ ";" }
 while_statement  = { "while" ~ "(" ~ expression ~ ")" ~ (statement | block) }
