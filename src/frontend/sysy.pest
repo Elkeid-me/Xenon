@@ -3,20 +3,37 @@ identifier = @{ (ASCII_ALPHA | "_") ~ ASCII_ALPHANUMERIC* }
 
 translation_unit = _{ SOI ~ decl* ~ EOI }
 
-decl = _{ function_decl | const_decl | var_decl }
+decl = _{ function_decl | const_declaration | variable_declaration }
 
 function_decl = { signature ~ block }
 signature     = { "int" ~ identifier ~ "(" ~ arg_list ~ ")" }
 arg_list      = { "" }
 
-const_decl = { "const" ~ "int" ~ def ~ ("," ~ def)* }
-def        = { identifier ~ "=" ~ exp }
-var_decl   = { "int" ~ identifier }
+const_declaration    = { ("const" ~ "int" | "int" ~ "const") ~ const_defination ~ ("," ~ const_defination)* }
+const_defination     = { identifier ~ "=" ~ expression }
+variable_declaration = { "int" ~ variable_defination ~ ("," ~ variable_defination)* }
+variable_defination  = { identifier ~ ("=" ~ expression)? }
 
-exp              = { "1" | "0" }
-return_statement = { "return" ~ exp ~ ";" }
-while_statement  = { "while" ~ "(" ~ exp ~ ")" ~ (statement | block) }
-if_statement     = { "if" ~ "(" ~ exp ~ ")" ~ (statement | block) ~ ("else" ~ (statement | block))? }
+atom            = _{ integer_hex | integer_bin | integer_oct | integer_dec | function_call | "(" ~ expression ~ ")" }
+binary_operator = _{ logic_or | logic_and | add | subtract | multiply | divide }
+logic_or        =  { "||" }
+logic_and       =  { "&&" }
+add             =  { "+" }
+subtract        =  { "-" }
+multiply        =  { "*" }
+divide          =  { "/" }
+expression      =  { atom ~ (binary_operator ~ atom)* }
+function_call   =  { identifier ~ "(" ~ (expression ~ ("," ~ expression)*)? ~ ")" }
+
+return_statement = { "return" ~ expression ~ ";" }
+while_statement  = { "while" ~ "(" ~ expression ~ ")" ~ (statement | block) }
+if_statement     = { "if" ~ "(" ~ expression ~ ")" ~ (statement | block) ~ ("else" ~ (statement | block))? }
+
+integer_hex = @{ ("0x" | "0X") ~ ASCII_HEX_DIGIT+ }
+integer_dec = @{ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT* }
+// 同时解析八进制整数和 0
+integer_oct = @{ "0" ~ ASCII_OCT_DIGIT* }
+integer_bin = @{ ("0b" | "0B") ~ ASCII_BIN_DIGIT+ }
 
 block     =  { "{" ~ statement* ~ "}" }
-statement = _{ ((const_decl | var_decl | exp) ~ ";") | return_statement | while_statement | if_statement }
+statement = _{ (const_declaration | variable_declaration | expression) ~ ";" | return_statement | while_statement | if_statement }

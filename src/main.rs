@@ -3,8 +3,9 @@ mod frontend;
 mod preprocessor;
 
 fn compile() {
+
+    let frontend = frontend::Frontend::new();
     todo!()
 }
 fn main() {
-    todo!()
 }
