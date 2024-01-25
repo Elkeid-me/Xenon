@@ -1,1 +1,3 @@
-pub enum AstNode {}
+pub enum AstNode {
+    ast_node,
+}
