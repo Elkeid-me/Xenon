@@ -1,7 +1,10 @@
 use pest::{
     error::Error,
     iterators::{Pair, Pairs},
-    pratt_parser::{Assoc, Op, PrattParser},
+    pratt_parser::{
+        Assoc::{Left, Right},
+        Op, PrattParser,
+    },
     Parser,
 };
 use pest_derive::Parser;
@@ -20,18 +23,38 @@ impl Frontend {
     pub fn new() -> Frontend {
         Frontend {
             pratt_parser: PrattParser::new()
-                .op(Op::infix(Rule::assign, Assoc::Left))
-                .op(Op::infix(Rule::logical_or, Assoc::Left))
-                .op(Op::infix(Rule::logical_and, Assoc::Left))
-                .op(Op::infix(Rule::add, Assoc::Left) | Op::infix(Rule::subtract, Assoc::Left))
-                .op(Op::infix(Rule::multiply, Assoc::Left)
-                    | Op::infix(Rule::divide, Assoc::Left)
-                    | Op::infix(Rule::modulus, Assoc::Left))
+                .op(Op::infix(Rule::assignment, Right)
+                    | Op::infix(Rule::add_assignment, Right)
+                    | Op::infix(Rule::subtract_assignment, Right)
+                    | Op::infix(Rule::multiply_assignment, Right)
+                    | Op::infix(Rule::divide_assignment, Right)
+                    | Op::infix(Rule::modulus_assignment, Right)
+                    | Op::infix(Rule::bit_and_assignment, Right)
+                    | Op::infix(Rule::bit_or_assignment, Right)
+                    | Op::infix(Rule::bit_xor_assignment, Right)
+                    | Op::infix(Rule::bit_left_shift_assignment, Right)
+                    | Op::infix(Rule::bit_right_shift_assignment, Right))
+                .op(Op::infix(Rule::logical_or, Left))
+                .op(Op::infix(Rule::logical_and, Left))
+                .op(Op::infix(Rule::bit_xor, Left))
+                .op(Op::infix(Rule::bit_xor, Left))
+                .op(Op::infix(Rule::bit_and, Left))
+                .op(Op::infix(Rule::equal, Left) | Op::infix(Rule::not_equal, Left))
+                .op(Op::infix(Rule::greater, Left)
+                    | Op::infix(Rule::greater_or_equal, Left)
+                    | Op::infix(Rule::less, Left)
+                    | Op::infix(Rule::less_or_equal, Left))
+                .op(Op::infix(Rule::bit_left_shift, Left) | Op::infix(Rule::bit_right_shift, Left))
+                .op(Op::infix(Rule::add, Left) | Op::infix(Rule::subtract, Left))
+                .op(Op::infix(Rule::multiply, Left)
+                    | Op::infix(Rule::divide, Left)
+                    | Op::infix(Rule::modulus, Left))
                 .op(Op::prefix(Rule::prefix_self_decrease)
                     | Op::prefix(Rule::prefix_self_increase)
                     | Op::prefix(Rule::logical_not)
                     | Op::prefix(Rule::negative)
-                    | Op::prefix(Rule::positive))
+                    | Op::prefix(Rule::positive)
+                    | Op::prefix(Rule::bit_not))
                 .op(Op::postfix(Rule::postfix_self_increase)
                     | Op::postfix(Rule::postfix_self_decrease)),
         }

@@ -20,7 +20,7 @@ defination          = _{ array_defination | variable_defination }
 variable_defination =  { identifier ~ ("=" ~ expression)? }
 array_defination    =  { identifier ~ array_subscript+ ~ ("=" ~ initializer_list)? }
 
-initializer_list = { "{" ~ initializer_list_item ~ ("," ~ initializer_list_item)* ~ "}" }
+initializer_list      = { "{" ~ initializer_list_item ~ ("," ~ initializer_list_item)* ~ "}" }
 initializer_list_item = { expression | initializer_list }
 
 primary = _{ integer_hex | integer_bin | integer_oct | integer_dec | function_call | array_element | identifier | "(" ~ expression ~ ")" }
@@ -30,7 +30,7 @@ postfix_operator      = _{ postfix_self_increase | postfix_self_decrease }
 postfix_self_increase =  { "++" }
 postfix_self_decrease =  { "--" }
 
-prefix_operator      = _{ prefix_self_increase | prefix_self_decrease | logical_not | negative | positive | address_of | indirection }
+prefix_operator      = _{ prefix_self_increase | prefix_self_decrease | logical_not | negative | positive | address_of | indirection | bit_not }
 prefix_self_increase =  { "++" }
 prefix_self_decrease =  { "--" }
 logical_not          =  { "!" }
@@ -38,16 +38,49 @@ negative             =  { "-" }
 positive             =  { "+" }
 address_of           =  { "&" }
 indirection          =  { "*" }
+bit_not              =  { "~" }
 
-infix_operator = _{ multiply | divide | modulus | add | subtract | logical_and | logical_or | assign }
-multiply       =  { "*" }
-divide         =  { "/" }
-modulus        =  { "%" }
-add            =  { "+" }
-subtract       =  { "-" }
-logical_and    =  { "&&" }
-logical_or     =  { "||" }
-assign         =  { "=" }
+infix_operator = _{ three_char_operator | two_char_operator | single_char_operator }
+
+single_char_operator = _{ multiply | divide | modulus | add | subtract | bit_xor | bit_and | bit_or | greater | less | assignment }
+
+two_char_operator = _{ logical_and | logical_or | bit_left_shift | bit_right_shift | equal | not_equal | greater_or_equal | less_or_equal | add_assignment | subtract_assignment | multiply_assignment | divide_assignment | modulus_assignment | bit_and_assignment | bit_or_assignment | bit_xor_assignment }
+
+three_char_operator = { bit_right_shift_assignment | bit_left_shift_assignment }
+
+multiply = { "*" }
+divide   = { "/" }
+modulus  = { "%" }
+add      = { "+" }
+subtract = { "-" }
+
+logical_and = { "&&" }
+logical_or  = { "||" }
+
+bit_left_shift  = { ">>" }
+bit_right_shift = { "<<" }
+bit_xor         = { "^" }
+bit_and         = { "&" }
+bit_or          = { "|" }
+
+equal            = { "==" }
+not_equal        = { "!=" }
+greater          = { ">" }
+greater_or_equal = { ">=" }
+less             = { "<" }
+less_or_equal    = { "<=" }
+
+assignment                 = { "=" }
+add_assignment             = { "+=" }
+subtract_assignment        = { "-=" }
+multiply_assignment        = { "*=" }
+divide_assignment          = { "/=" }
+modulus_assignment         = { "%=" }
+bit_and_assignment         = { "&=" }
+bit_or_assignment          = { "|=" }
+bit_xor_assignment         = { "^=" }
+bit_left_shift_assignment  = { ">>=" }
+bit_right_shift_assignment = { "<<=" }
 
 array_element   = { identifier ~ array_subscript+ }
 array_subscript = { "[" ~ expression ~ "]" }
@@ -66,5 +99,5 @@ integer_dec = @{ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT* }
 integer_oct = @{ "0" ~ ASCII_OCT_DIGIT* }
 integer_bin = @{ ("0b" | "0B") ~ ASCII_BIN_DIGIT+ }
 
-block     =  { "{" ~ statement* ~ "}" }
-statement =  { (const_declaration | declaration | expression) ~ ";" | return_statement | while_statement | if_statement }
+block     = { "{" ~ statement* ~ "}" }
+statement = { (const_declaration | declaration | expression) ~ ";" | return_statement | while_statement | if_statement }
