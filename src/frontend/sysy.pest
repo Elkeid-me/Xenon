@@ -5,20 +5,20 @@ translation_unit = _{ SOI ~ decl* ~ EOI }
 
 decl = _{ function_decl | const_declaration | declaration }
 
-function_decl       = { signature ~ block }
-signature           = { "int" ~ identifier ~ "(" ~ paramete_list ~ ")" }
-paramete_list       = { paramete_defination ~ ("," ~ paramete_defination)* | "void" | "" }
-paramete_defination = { "int" ~ identifier }
+function_decl        = { signature ~ block }
+signature            = { "int" ~ identifier ~ "(" ~ parameter_list ~ ")" }
+parameter_list       = { parameter_definition ~ ("," ~ parameter_definition)* | "void" | "" }
+parameter_definition = { "int" ~ identifier }
 
-const_declaration         =  { ("const" ~ "int" | "int" ~ "const") ~ const_defination ~ ("," ~ const_defination)* }
-const_defination          = _{ const_array_defination | const_variable_defination }
-const_variable_defination =  { identifier ~ "=" ~ expression }
-const_array_defination    =  { identifier ~ array_subscript+ ~ "=" ~ initializer_list }
+const_declaration         =  { ("const" ~ "int" | "int" ~ "const") ~ const_definition ~ ("," ~ const_definition)* }
+const_definition          = _{ const_array_definition | const_variable_definition }
+const_variable_definition =  { identifier ~ "=" ~ expression }
+const_array_definition    =  { identifier ~ array_subscript+ ~ "=" ~ initializer_list }
 
-declaration         =  { "int" ~ defination ~ ("," ~ defination)* }
-defination          = _{ array_defination | variable_defination }
-variable_defination =  { identifier ~ ("=" ~ expression)? }
-array_defination    =  { identifier ~ array_subscript+ ~ ("=" ~ initializer_list)? }
+declaration         =  { "int" ~ definition ~ ("," ~ definition)* }
+definition          = _{ array_definition | variable_definition }
+variable_definition =  { identifier ~ ("=" ~ expression)? }
+array_definition    =  { identifier ~ array_subscript+ ~ ("=" ~ initializer_list)? }
 
 initializer_list      = { "{" ~ initializer_list_item ~ ("," ~ initializer_list_item)* ~ "}" }
 initializer_list_item = { expression | initializer_list }
