@@ -1,5 +1,5 @@
 WHITESPACE = _{ " " | "\t" | NEWLINE }
-identifier = @{ (ASCII_ALPHA | "_") ~ ASCII_ALPHANUMERIC* }
+identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 
 translation_unit = _{ SOI ~ decl* ~ EOI }
 
