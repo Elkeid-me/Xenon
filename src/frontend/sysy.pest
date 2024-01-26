@@ -1,14 +1,20 @@
 WHITESPACE = _{ " " | "\t" | NEWLINE }
 identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 
-translation_unit = _{ SOI ~ decl* ~ EOI }
+translation_unit = _{ SOI ~ global_item* ~ EOI }
 
-decl = _{ function_decl | const_declaration | declaration }
+global_item = _{ const_declaration ~ ";" | function_declaration | function_definition | declaration ~ ";" }
 
-function_decl        = { signature ~ block }
-signature            = { "int" ~ identifier ~ "(" ~ parameter_list ~ ")" }
-parameter_list       = { parameter_definition ~ ("," ~ parameter_definition)* | "void" | "" }
-parameter_definition = { "int" ~ identifier }
+function_declaration          =  { signature ~ ";" }
+function_definition           =  { signature ~ block }
+signature                     =  { function_return_type ~ identifier ~ "(" ~ parameter_list ~ ")" }
+parameter_list                =  { parameter_definition ~ ("," ~ parameter_definition)* | "void" | "" }
+parameter_definition          = _{ array_parameter_definition | variable_parameter_definition }
+array_parameter_definition    =  { "int" ~ identifier ~ "[" ~ "]" }
+variable_parameter_definition =  { "int" ~ identifier }
+int                           =  { "int" }
+void                          =  { "void" }
+function_return_type          = _{ int | void }
 
 const_declaration         =  { ("const" ~ "int" | "int" ~ "const") ~ const_definition ~ ("," ~ const_definition)* }
 const_definition          = _{ const_array_definition | const_variable_definition }
@@ -43,10 +49,8 @@ bit_not              =  { "~" }
 infix_operator = _{ three_char_operator | two_char_operator | single_char_operator }
 
 single_char_operator = _{ multiply | divide | modulus | add | subtract | bit_xor | bit_and | bit_or | greater | less | assignment }
-
-two_char_operator = _{ logical_and | logical_or | bit_left_shift | bit_right_shift | equal | not_equal | greater_or_equal | less_or_equal | add_assignment | subtract_assignment | multiply_assignment | divide_assignment | modulus_assignment | bit_and_assignment | bit_or_assignment | bit_xor_assignment }
-
-three_char_operator = { bit_right_shift_assignment | bit_left_shift_assignment }
+two_char_operator    = _{ logical_and | logical_or | bit_left_shift | bit_right_shift | equal | not_equal | greater_or_equal | less_or_equal | add_assignment | subtract_assignment | multiply_assignment | divide_assignment | modulus_assignment | bit_and_assignment | bit_or_assignment | bit_xor_assignment }
+three_char_operator  = _{ bit_right_shift_assignment | bit_left_shift_assignment }
 
 multiply = { "*" }
 divide   = { "/" }
