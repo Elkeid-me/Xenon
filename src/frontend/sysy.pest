@@ -94,7 +94,7 @@ expression    = { atom ~ (infix_operator ~ atom)* }
 function_call = { identifier ~ "(" ~ argument_list? ~ ")" }
 argument_list = { expression ~ ("," ~ expression)* }
 
-return_statement = { "return" ~ expression ~ ";" }
+return_statement = { "return" ~ expression? }
 while_statement  = { "while" ~ "(" ~ expression ~ ")" ~ (statement | block) }
 if_statement     = { "if" ~ "(" ~ expression ~ ")" ~ (statement | block) ~ ("else" ~ (statement | block))? }
 
@@ -104,5 +104,8 @@ integer_dec = @{ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT* }
 integer_oct = @{ "0" ~ ASCII_OCT_DIGIT* }
 integer_bin = @{ ("0b" | "0B") ~ ASCII_BIN_DIGIT+ }
 
+continue_statement = { "continue" }
+break_statement    = { "break" }
+
 block     = { "{" ~ (block | statement)* ~ "}" }
-statement = { (const_declaration | declaration | expression) ~ ";" | return_statement | while_statement | if_statement }
+statement = { (continue_statement | break_statement | return_statement | const_declaration | declaration | expression) ~ ";" | while_statement | if_statement }
