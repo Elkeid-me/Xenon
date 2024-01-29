@@ -74,17 +74,13 @@ impl AstBuilder {
                 Rule::function_call => {
                     let mut iter = p.into_inner();
                     let identifier = iter.next().unwrap().as_str().into();
-                    let exprs = iter
-                        .map(|p| Box::new(self.parse_expr(p.into_inner())))
-                        .collect();
+                    let exprs = iter.map(|p| self.parse_expr(p.into_inner())).collect();
                     Expr::FunctionCall(identifier, exprs)
                 }
                 Rule::array_element => {
                     let mut iter = p.into_inner();
                     let identifier = iter.next().unwrap().as_str().into();
-                    let exprs = iter
-                        .map(|p| Box::new(self.parse_expr(p.into_inner())))
-                        .collect();
+                    let exprs = iter.map(|p| self.parse_expr(p.into_inner())).collect();
                     Expr::ArrayElement(identifier, exprs)
                 }
                 _ => unreachable!(),
@@ -145,11 +141,80 @@ impl AstBuilder {
             .parse(pairs)
     }
 
-    fn build_ast(self: &Self, code: &String) -> AstNode {
-        let translation_unit = SysYParser::parse(Rule::translation_unit, code)
-            .unwrap()
-            .next()
-            .unwrap();
+    fn parse_definition(self: &Self, pair: Pair<Rule>) -> Declaration {
+        match pair.as_rule() {
+            Rule::const_variable_definition => {
+                Declaration::ConstVariableDefinition(todo!(), todo!())
+            }
+            Rule::const_array_definition => Declaration::ConstArrayDefinition {
+                identifier: todo!(),
+                lengths: todo!(),
+                init_list: todo!(),
+            },
+            Rule::variable_definition => Declaration::VariableDefinition(todo!(), todo!()),
+            Rule::array_definition => Declaration::ArrayDefinition {
+                identifier: todo!(),
+                lengths: todo!(),
+                init_list: todo!(),
+            },
+            _ => unreachable!(),
+        }
+    }
+
+    fn parse_statement(self: &Self, pair: Pair<Rule>) -> Statement {
+        let p = pair.into_inner().next().unwrap();
+        match p.as_rule() {
+            Rule::expression => Statement::Expr(self.parse_expr(p.into_inner())),
+            Rule::return_statement => match p.into_inner().next() {
+                None => Statement::Return(None),
+                Some(exp) => Statement::Return(Some(self.parse_expr(exp.into_inner()))),
+            },
+            Rule::break_statement => Statement::Break,
+            Rule::continue_statement => Statement::Continue,
+            _ => unreachable!(),
+        }
+    }
+
+    fn parse_block(self: &Self, pair: Pair<Rule>) -> Block {
+        pair.into_inner()
+            .into_iter()
+            .map(|pair| match pair.as_rule() {
+                Rule::block => BlockItem::Block(Box::new(self.parse_block(pair))),
+                Rule::statement => BlockItem::Statement(Box::new(self.parse_statement(pair))),
+                Rule::const_variable_definition => todo!(),
+                _ => unreachable!(),
+            })
+            .collect()
+    }
+
+    fn parse_function_definition(self: &Self, pair: Pair<Rule>) -> GlobalItem {
         todo!()
     }
+
+    fn parse_global_item(self: &Self, pair: Pair<Rule>) -> GlobalItem {
+        match pair.as_rule() {
+            Rule::const_declaration => todo!(),
+            Rule::function_declaration => todo!(),
+            Rule::function_definition => todo!(),
+            Rule::declaration => todo!(),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn build_ast(self: &Self, code: &String) -> TranslationUnit {
+        let translation_unit = SysYParser::parse(Rule::translation_unit, code).unwrap();
+        translation_unit
+            .into_iter()
+            .map(|p| Box::new(self.parse_global_item(p)))
+            .collect()
+    }
+}
+
+#[test]
+fn t() {
+    let s = "{return x + 1; return; {  z = z[1] + z[2]; } }".to_string();
+    let w =
+        AstBuilder::new().parse_block(SysYParser::parse(Rule::block, &s).unwrap().next().unwrap());
+    dbg!(w);
+    assert!(false);
 }

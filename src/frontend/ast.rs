@@ -1,10 +1,64 @@
-pub type TranslationUnit = Vec<GlobalItem>;
+pub type TranslationUnit = Vec<Box<GlobalItem>>;
 
+#[derive(Debug)]
 pub enum GlobalItem {
-    ConstDecl(ConstDecl),
-    FuncDecl,
-    FuncDef,
-    Decl,
+    Declaration(Declaration),
+    FunctionDefinition {
+        return_void: bool,
+        identifier: String,
+        block: Block,
+    },
+}
+
+#[derive(Debug)]
+pub enum Declaration {
+    ConstVariableDefinition(String, Expr),
+    ConstArrayDefinition {
+        identifier: String,
+        lengths: Vec<usize>,
+        init_list: InitializerList,
+    },
+    VariableDefinition(String, Option<Expr>),
+    ArrayDefinition{
+        identifier: String,
+        lengths: Vec<usize>,
+        init_list: Option<InitializerList>,
+    },
+    FunctionDeclaration,
+}
+
+pub type InitializerList = Vec<InitializerListItem>;
+
+#[derive(Debug)]
+pub enum InitializerListItem {
+    InitializerList(Box<InitializerList>),
+    Expr(Box<Expr>),
+}
+
+#[derive(Debug)]
+pub enum Statement {
+    Expr(Expr),
+    If {
+        condition: Expr,
+        then_block: Block,
+        else_block: Block,
+    },
+    While {
+        condition: Expr,
+        block: Block,
+    },
+    Return(Option<Expr>),
+    Break,
+    Continue,
+}
+
+pub type Block = Vec<BlockItem>;
+
+#[derive(Debug)]
+pub enum BlockItem {
+    Declaration(Box<Declaration>),
+    Block(Box<Block>),
+    Statement(Box<Statement>),
 }
 
 #[derive(Debug)]
@@ -55,11 +109,9 @@ pub enum Expr {
 
     Num(i32),
     Identifier(String),
-    FunctionCall(String, Vec<Box<Expr>>),
-    ArrayElement(String, Vec<Box<Expr>>),
+    FunctionCall(String, Vec<Expr>),
+    ArrayElement(String, Vec<Expr>),
 }
-
-pub enum ConstDecl {}
 
 #[derive(Debug)]
 pub enum AstNode {

@@ -16,12 +16,12 @@ int                           =  { "int" }
 void                          =  { "void" }
 function_return_type          = _{ int | void }
 
-const_declaration         =  { ("const" ~ "int" | "int" ~ "const") ~ const_definition ~ ("," ~ const_definition)* }
+const_declaration         = _{ ("const" ~ "int" | "int" ~ "const") ~ const_definition ~ ("," ~ const_definition)* }
 const_definition          = _{ const_array_definition | const_variable_definition }
 const_variable_definition =  { identifier ~ "=" ~ expression }
 const_array_definition    =  { identifier ~ array_subscript+ ~ "=" ~ initializer_list }
 
-declaration         =  { "int" ~ definition ~ ("," ~ definition)* }
+declaration         = _{ "int" ~ definition ~ ("," ~ definition)* }
 definition          = _{ array_definition | variable_definition }
 variable_definition =  { identifier ~ ("=" ~ expression)? }
 array_definition    =  { identifier ~ array_subscript+ ~ ("=" ~ initializer_list)? }
@@ -95,8 +95,8 @@ function_call =  { identifier ~ "(" ~ argument_list? ~ ")" }
 argument_list = _{ expression ~ ("," ~ expression)* }
 
 return_statement = { "return" ~ expression? }
-while_statement  = { "while" ~ "(" ~ expression ~ ")" ~ (statement | block) }
-if_statement     = { "if" ~ "(" ~ expression ~ ")" ~ (statement | block) ~ ("else" ~ (statement | block))? }
+while_statement  = { "while" ~ "(" ~ expression ~ ")" ~ (single_line_block_item | block) }
+if_statement     = { "if" ~ "(" ~ expression ~ ")" ~ (single_line_block_item | block) ~ ("else" ~ (single_line_block_item | block))? }
 
 integer_hex = @{ ("0x" | "0X") ~ ASCII_HEX_DIGIT+ }
 integer_dec = @{ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT* }
@@ -107,5 +107,8 @@ integer_bin = @{ ("0b" | "0B") ~ ASCII_BIN_DIGIT+ }
 continue_statement = { "continue" }
 break_statement    = { "break" }
 
-block     = { "{" ~ (block | statement)* ~ "}" }
-statement = { (continue_statement | break_statement | return_statement | const_declaration | declaration | expression) ~ ";" | while_statement | if_statement }
+block = { "{" ~ (block | single_line_block_item)* ~ "}" }
+
+statement              =  { (continue_statement | break_statement | return_statement | expression) ~ ";" | while_statement | if_statement }
+declarations           =  { const_declaration | declaration }
+single_line_block_item = _{ statement | declarations }
