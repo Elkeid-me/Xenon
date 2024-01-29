@@ -1,3 +1,5 @@
+use std::fs::read_to_string;
+
 use pest::pratt_parser::{
     Assoc::{Left, Right},
     Op, PrattParser,
@@ -9,11 +11,11 @@ use pest::{
 };
 use pest_derive::Parser;
 
-use super::ast::AstNode;
+use super::ast::*;
 
 #[derive(Parser)]
 #[grammar = "frontend/sysy.pest"]
-struct SYSYParser;
+struct SysYParser;
 
 pub struct AstBuilder {
     pratt_parser: PrattParser<Rule>,
@@ -60,36 +62,94 @@ impl AstBuilder {
         }
     }
 
-    fn parse_expr(self: &Self, pairs: Pairs<Rule>) -> Result<AstNode, Error<Rule>> {
-        let w = self
-            .pratt_parser
-            .map_primary(|primary| AstNode::ast_node)
+    fn parse_expr(self: &Self, pairs: Pairs<Rule>) -> Expr {
+        self.pratt_parser
+            .map_primary(|p| match p.as_rule() {
+                Rule::expression => self.parse_expr(p.into_inner()),
+                Rule::integer_bin => Expr::Num(i32::from_str_radix(&p.as_str()[2..], 2).unwrap()),
+                Rule::integer_oct => Expr::Num(i32::from_str_radix(p.as_str(), 8).unwrap()),
+                Rule::integer_dec => Expr::Num(i32::from_str_radix(p.as_str(), 10).unwrap()),
+                Rule::integer_hex => Expr::Num(i32::from_str_radix(&p.as_str()[2..], 16).unwrap()),
+                Rule::identifier => Expr::Identifier(p.as_str().into()),
+                Rule::function_call => {
+                    let mut iter = p.into_inner();
+                    let identifier = iter.next().unwrap().as_str().into();
+                    let exprs = iter
+                        .map(|p| Box::new(self.parse_expr(p.into_inner())))
+                        .collect();
+                    Expr::FunctionCall(identifier, exprs)
+                }
+                Rule::array_element => {
+                    let mut iter = p.into_inner();
+                    let identifier = iter.next().unwrap().as_str().into();
+                    let exprs = iter
+                        .map(|p| Box::new(self.parse_expr(p.into_inner())))
+                        .collect();
+                    Expr::ArrayElement(identifier, exprs)
+                }
+                _ => unreachable!(),
+            })
             .map_infix(|lhs, op, rhs| match op.as_rule() {
-                Rule::postfix_self_increase => AstNode::ast_node,
-                Rule::postfix_self_decrease => AstNode::ast_node,
-                rule => unreachable!(),
+                Rule::multiply => Expr::Multiply(Box::new(lhs), Box::new(rhs)),
+                Rule::divide => Expr::Divide(Box::new(lhs), Box::new(rhs)),
+                Rule::modulus => Expr::Modulus(Box::new(lhs), Box::new(rhs)),
+                Rule::add => Expr::Add(Box::new(lhs), Box::new(rhs)),
+                Rule::subtract => Expr::Subtract(Box::new(lhs), Box::new(rhs)),
+
+                Rule::logical_and => Expr::LogicalAnd(Box::new(lhs), Box::new(rhs)),
+                Rule::logical_or => Expr::LogicalOr(Box::new(lhs), Box::new(rhs)),
+
+                Rule::bit_left_shift => Expr::BitLeftShift(Box::new(lhs), Box::new(rhs)),
+                Rule::bit_right_shift => Expr::BitRightShift(Box::new(lhs), Box::new(rhs)),
+                Rule::bit_xor => Expr::BirXor(Box::new(lhs), Box::new(rhs)),
+                Rule::bit_and => Expr::BitAnd(Box::new(lhs), Box::new(rhs)),
+                Rule::bit_or => Expr::BitOr(Box::new(lhs), Box::new(rhs)),
+
+                Rule::equal => Expr::Equal(Box::new(lhs), Box::new(rhs)),
+                Rule::not_equal => Expr::NotEqual(Box::new(lhs), Box::new(rhs)),
+                Rule::greater => Expr::Greater(Box::new(lhs), Box::new(rhs)),
+                Rule::greater_or_equal => Expr::GreaterOrEqual(Box::new(lhs), Box::new(rhs)),
+                Rule::less => Expr::Less(Box::new(lhs), Box::new(rhs)),
+                Rule::less_or_equal => Expr::LessOrEqual(Box::new(lhs), Box::new(rhs)),
+
+                Rule::assignment => Expr::Assignment(Box::new(lhs), Box::new(rhs)),
+                Rule::add_assignment => Expr::AddAssignment(Box::new(lhs), Box::new(rhs)),
+                Rule::subtract_assignment => Expr::SubtractAssignment(Box::new(lhs), Box::new(rhs)),
+                Rule::multiply_assignment => Expr::MultiplyAssignment(Box::new(lhs), Box::new(rhs)),
+                Rule::bit_and_assignment => Expr::BitAndAssignment(Box::new(lhs), Box::new(rhs)),
+                Rule::bit_or_assignment => Expr::BitOrAssignment(Box::new(lhs), Box::new(rhs)),
+                Rule::bit_xor_assignment => Expr::BitXorAssignment(Box::new(lhs), Box::new(rhs)),
+                Rule::bit_left_shift_assignment => {
+                    Expr::BitLeftShiftAssignment(Box::new(lhs), Box::new(rhs))
+                }
+                Rule::bit_right_shift_assignment => {
+                    Expr::BitRightShiftAssignment(Box::new(lhs), Box::new(rhs))
+                }
+                _ => unreachable!(),
             })
             .map_prefix(|op, rhs| match op.as_rule() {
-                Rule::postfix_self_increase => AstNode::ast_node,
-                Rule::postfix_self_decrease => AstNode::ast_node,
-                rule => unreachable!(),
+                Rule::prefix_self_increase => Expr::PrefixSelfIncrease(Box::new(rhs)),
+                Rule::prefix_self_decrease => Expr::PrefixSelfDecrease(Box::new(rhs)),
+                Rule::logical_not => Expr::LogicalNot(Box::new(rhs)),
+                Rule::negative => Expr::Negative(Box::new(rhs)),
+                Rule::positive => Expr::Positive(Box::new(rhs)),
+                Rule::address_of => Expr::AddressOf(Box::new(rhs)),
+                Rule::indirection => Expr::BitNot(Box::new(rhs)),
+                _ => unreachable!(),
             })
             .map_postfix(|lhs, op| match op.as_rule() {
-                Rule::postfix_self_increase => AstNode::ast_node,
-                Rule::postfix_self_decrease => AstNode::ast_node,
-                rule => unreachable!(),
+                Rule::postfix_self_increase => Expr::PostfixSelfIncrease(Box::new(lhs)),
+                Rule::postfix_self_decrease => Expr::PostfixSelfDecrease(Box::new(lhs)),
+                _ => unreachable!(),
             })
-            .parse(pairs);
-        todo!()
+            .parse(pairs)
     }
 
-    fn build_ast(self: &Self, code: &String) -> Result<AstNode, Error<Rule>> {
-        let translation_unit = SYSYParser::parse(Rule::translation_unit, code)?
+    fn build_ast(self: &Self, code: &String) -> AstNode {
+        let translation_unit = SysYParser::parse(Rule::translation_unit, code)
+            .unwrap()
             .next()
             .unwrap();
-        fn parse_ast_node(pair: Pair<Rule>) -> AstNode {
-            todo!()
-        }
         todo!()
     }
 }

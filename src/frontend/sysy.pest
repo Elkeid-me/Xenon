@@ -87,12 +87,12 @@ bit_xor_assignment         = { "^=" }
 bit_left_shift_assignment  = { ">>=" }
 bit_right_shift_assignment = { "<<=" }
 
-array_element   = { identifier ~ array_subscript+ }
-array_subscript = { "[" ~ expression ~ "]" }
+array_element   =  { identifier ~ array_subscript+ }
+array_subscript = _{ "[" ~ expression ~ "]" }
 
-expression    = { atom ~ (infix_operator ~ atom)* }
-function_call = { identifier ~ "(" ~ argument_list? ~ ")" }
-argument_list = { expression ~ ("," ~ expression)* }
+expression    =  { atom ~ (infix_operator ~ atom)* }
+function_call =  { identifier ~ "(" ~ argument_list? ~ ")" }
+argument_list = _{ expression ~ ("," ~ expression)* }
 
 return_statement = { "return" ~ expression? }
 while_statement  = { "while" ~ "(" ~ expression ~ ")" ~ (statement | block) }
