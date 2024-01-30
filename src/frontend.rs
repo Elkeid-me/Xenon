@@ -4,6 +4,6 @@ mod parser;
 
 pub struct Frontend {}
 
-pub fn generate_ir(code: &String) -> koopa::ir::Program {
+pub fn generate_ir(code: &str) -> koopa::ir::Program {
     todo!()
 }

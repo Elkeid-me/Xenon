@@ -74,7 +74,7 @@ fn comment_with_star_fun(c: char) -> (State, Option<char>, Option<char>) {
     }
 }
 
-pub fn preprocess(code: &String) -> String {
+pub fn preprocess(code: &str) -> String {
     let mut new_code = String::new();
     let mut state = State::Code;
     let mut new_char_1: Option<char>;

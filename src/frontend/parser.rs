@@ -201,7 +201,7 @@ impl AstBuilder {
         }
     }
 
-    pub fn build_ast(self: &Self, code: &String) -> TranslationUnit {
+    pub fn build_ast(self: &Self, code: &str) -> TranslationUnit {
         let translation_unit = SysYParser::parse(Rule::translation_unit, code).unwrap();
         translation_unit
             .into_iter()
