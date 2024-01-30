@@ -3,32 +3,37 @@ identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 
 translation_unit = _{ SOI ~ global_item* ~ EOI }
 
-global_item = _{ const_declaration ~ ";" | function_declaration | function_definition | declaration ~ ";" }
+global_item = _{ declarations | function_definition }
 
-function_declaration          =  { signature ~ ";" }
+// function_declaration           =  { signature ~ ";" }
 function_definition           =  { signature ~ block }
 signature                     =  { function_return_type ~ identifier ~ "(" ~ parameter_list ~ ")" }
 parameter_list                =  { parameter_definition ~ ("," ~ parameter_definition)* | "void" | "" }
 parameter_definition          = _{ array_parameter_definition | variable_parameter_definition }
-array_parameter_definition    =  { "int" ~ identifier ~ "[" ~ "]" }
-variable_parameter_definition =  { "int" ~ identifier }
-int                           =  { "int" }
-void                          =  { "void" }
-function_return_type          = _{ int | void }
+array_parameter_definition    =  { int ~ identifier ~ "[" ~ "]" }
+variable_parameter_definition =  { int ~ identifier }
+int                           = @{ "int" ~ WHITE_SPACE+ }
+void                          = @{ "void" ~ WHITE_SPACE+ }
+return_keyword                = @{ "return" ~ WHITE_SPACE+ }
+const_declaration_type        = @{ ("const" ~ WHITE_SPACE+ ~ "int" | "int" ~ WHITE_SPACE+ ~ "const") ~ WHITE_SPACE+ }
 
-const_declaration         = _{ ("const" ~ "int" | "int" ~ "const") ~ const_definition ~ ("," ~ const_definition)* }
+function_return_type = _{ int | void }
+
+const_declaration         = _{ const_declaration_type ~ const_definition ~ ("," ~ const_definition)* }
 const_definition          = _{ const_array_definition | const_variable_definition }
 const_variable_definition =  { identifier ~ "=" ~ expression }
-const_array_definition    =  { identifier ~ array_subscript+ ~ "=" ~ initializer_list }
+const_array_definition    =  { identifier ~ array_definition_lengths ~ "=" ~ initializer_list }
 
-declaration         = _{ "int" ~ definition ~ ("," ~ definition)* }
+declaration         = _{ int ~ definition ~ ("," ~ definition)* }
 definition          = _{ array_definition | variable_definition }
 variable_definition =  { identifier ~ ("=" ~ expression)? }
-array_definition    =  { identifier ~ array_subscript+ ~ ("=" ~ initializer_list)? }
+array_definition    =  { identifier ~ array_definition_lengths ~ ("=" ~ initializer_list)? }
 
-initializer_list       = { empty_initializer_list | "{" ~ initializer_list_item ~ ("," ~ initializer_list_item)* ~ "}" }
-empty_initializer_list = { "{" ~ "}" }
-initializer_list_item  = { expression | initializer_list }
+array_definition_lengths = { array_subscript+ }
+
+initializer_list       =  { empty_initializer_list | "{" ~ initializer_list_item ~ ("," ~ initializer_list_item)* ~ "}" }
+empty_initializer_list =  { "{" ~ "}" }
+initializer_list_item  = _{ expression | initializer_list }
 
 primary = _{ integer_hex | integer_bin | integer_oct | integer_dec | function_call | array_element | identifier | "(" ~ expression ~ ")" }
 atom    = _{ prefix_operator* ~ primary ~ postfix_operator* }
@@ -94,9 +99,9 @@ expression    =  { atom ~ (infix_operator ~ atom)* }
 function_call =  { identifier ~ "(" ~ argument_list? ~ ")" }
 argument_list = _{ expression ~ ("," ~ expression)* }
 
-return_statement = { "return" ~ expression? }
-while_statement  = { "while" ~ "(" ~ expression ~ ")" ~ (single_line_block_item | block) }
-if_statement     = { "if" ~ "(" ~ expression ~ ")" ~ (single_line_block_item | block) ~ ("else" ~ (single_line_block_item | block))? }
+return_statement = { return_keyword ~ expression? }
+while_statement  = { "while" ~ "(" ~ expression ~ ")" ~ (non_block_block_item | block) }
+if_statement     = { "if" ~ "(" ~ expression ~ ")" ~ (non_block_block_item | block) ~ ("else" ~ (non_block_block_item | block))? }
 
 integer_hex = @{ ("0x" | "0X") ~ ASCII_HEX_DIGIT+ }
 integer_dec = @{ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT* }
@@ -107,8 +112,8 @@ integer_bin = @{ ("0b" | "0B") ~ ASCII_BIN_DIGIT+ }
 continue_statement = { "continue" }
 break_statement    = { "break" }
 
-block = { "{" ~ (block | single_line_block_item)* ~ "}" }
+block = { "{" ~ (block | non_block_block_item)* ~ "}" }
 
-statement              =  { (continue_statement | break_statement | return_statement | expression) ~ ";" | while_statement | if_statement }
-declarations           =  { const_declaration | declaration }
-single_line_block_item = _{ statement | declarations }
+statement            =  { (continue_statement | break_statement | return_statement | expression) ~ ";" | while_statement | if_statement }
+declarations         =  { (const_declaration | declaration) ~ ";" }
+non_block_block_item = _{ statement | declarations }
