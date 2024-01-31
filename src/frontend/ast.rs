@@ -34,7 +34,6 @@ pub enum DeclarationItem {
         lengths: Vec<Expr>,
         init_list: Option<InitializerList>,
     },
-    FunctionDeclaration,
 }
 
 pub type InitializerList = Vec<InitializerListItem>;

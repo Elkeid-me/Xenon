@@ -48,7 +48,8 @@ impl AstBuilder {
                     | Op::prefix(Rule::logical_not)
                     | Op::prefix(Rule::negative)
                     | Op::prefix(Rule::positive)
-                    | Op::prefix(Rule::bit_not))
+                    | Op::prefix(Rule::bit_not)
+                    | Op::prefix(Rule::indirection))
                 .op(Op::postfix(Rule::postfix_self_increase) | Op::postfix(Rule::postfix_self_decrease)),
         }
     }
@@ -123,7 +124,8 @@ impl AstBuilder {
                 Rule::negative => Expr::Negative(Box::new(rhs)),
                 Rule::positive => Expr::Positive(Box::new(rhs)),
                 Rule::address_of => Expr::AddressOf(Box::new(rhs)),
-                Rule::indirection => Expr::BitNot(Box::new(rhs)),
+                Rule::bit_not => Expr::BitNot(Box::new(rhs)),
+                Rule::indirection => Expr::Indirection(Box::new(rhs)),
                 rule => {
                     dbg!(rule);
                     unreachable!()
@@ -336,29 +338,8 @@ impl AstBuilder {
         let translation_unit = SysYParser::parse(Rule::translation_unit, code).unwrap();
         translation_unit
             .into_iter()
+            .filter(|pair| pair.as_rule() != Rule::EOI)
             .map(|p| Box::new(self.parse_global_item(p)))
-            .filter(|p| match p.as_ref() {
-                GlobalItem::Declaration(_)
-                | GlobalItem::FunctionDefinition {
-                    return_void: _,
-                    identifier: _,
-                    parameter_list: _,
-                    block: _,
-                } => true,
-                _ => false,
-            })
             .collect()
     }
-}
-
-#[test]
-fn t() {
-    let s = "int f(int x, int z[]){int return_ = 1, y[2] = {1, 2}; if (x == z[1]) { return_ = 2; return x == return_; } else { return 1 == 1; } }";
-    let w = AstBuilder::new()
-        .parse_function_definition(SysYParser::parse(Rule::function_definition, s).unwrap().next().unwrap());
-    dbg!(w);
-
-    let a = AstBuilder::new().build_ast(s);
-    dbg!(a);
-    assert!(false);
 }

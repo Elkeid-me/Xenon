@@ -5,7 +5,6 @@ translation_unit = _{ SOI ~ global_item* ~ EOI }
 
 global_item = _{ declarations | function_definition }
 
-// function_declaration           =  { signature ~ ";" }
 function_definition           =  { signature ~ block }
 signature                     =  { function_return_type ~ identifier ~ "(" ~ parameter_list ~ ")" }
 parameter_list                =  { parameter_definition ~ ("," ~ parameter_definition)* | "void" | "" }
@@ -31,9 +30,8 @@ array_definition    =  { identifier ~ array_definition_lengths ~ ("=" ~ initiali
 
 array_definition_lengths = { array_subscript+ }
 
-initializer_list       =  { empty_initializer_list | "{" ~ initializer_list_item ~ ("," ~ initializer_list_item)* ~ "}" }
-empty_initializer_list =  { "{" ~ "}" }
-initializer_list_item  = _{ expression | initializer_list }
+initializer_list         =  { "{" ~ initializer_list_content? ~ "}" }
+initializer_list_content = _{ initializer_list ~ ("," ~ initializer_list)* | expression ~ ("," ~ expression)* }
 
 primary = _{ integer_hex | integer_bin | integer_oct | integer_dec | function_call | array_element | identifier | "(" ~ expression ~ ")" }
 atom    = _{ prefix_operator* ~ primary ~ postfix_operator* }
@@ -55,7 +53,9 @@ bit_not              =  { "~" }
 infix_operator = _{ three_char_operator | two_char_operator | single_char_operator }
 
 single_char_operator = _{ multiply | divide | modulus | add | subtract | bit_xor | bit_and | bit_or | greater | less | assignment }
-two_char_operator    = _{ logical_and | logical_or | bit_left_shift | bit_right_shift | equal | not_equal | greater_or_equal | less_or_equal | add_assignment | subtract_assignment | multiply_assignment | divide_assignment | modulus_assignment | bit_and_assignment | bit_or_assignment | bit_xor_assignment }
+two_char_operator    = _{ logical_and | logical_or | bit_left_shift | bit_right_shift | equal | not_equal | greater_or_equal
+                          | less_or_equal | add_assignment | subtract_assignment | multiply_assignment | divide_assignment
+                          | modulus_assignment | bit_and_assignment | bit_or_assignment | bit_xor_assignment }
 three_char_operator  = _{ bit_right_shift_assignment | bit_left_shift_assignment }
 
 multiply = { "*" }
