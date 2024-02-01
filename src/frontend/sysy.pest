@@ -3,7 +3,7 @@ identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 
 translation_unit = _{ SOI ~ global_item* ~ EOI }
 
-global_item = _{ declarations | function_definition }
+global_item = _{ all_definitions | function_definition }
 
 function_definition           =  { signature ~ block }
 signature                     =  { function_return_type ~ identifier ~ "(" ~ parameter_list ~ ")" }
@@ -14,16 +14,16 @@ variable_parameter_definition =  { int ~ identifier }
 int                           = @{ "int" ~ WHITE_SPACE+ }
 void                          = @{ "void" ~ WHITE_SPACE+ }
 return_keyword                = @{ "return" ~ WHITE_SPACE+ }
-const_declaration_type        = @{ ("const" ~ WHITE_SPACE+ ~ "int" | "int" ~ WHITE_SPACE+ ~ "const") ~ WHITE_SPACE+ }
+const_definition_type         = @{ ("const" ~ WHITE_SPACE+ ~ "int" | "int" ~ WHITE_SPACE+ ~ "const") ~ WHITE_SPACE+ }
 
 function_return_type = _{ int | void }
 
-const_declaration         = _{ const_declaration_type ~ const_definition ~ ("," ~ const_definition)* }
+const_definitions         = _{ const_definition_type ~ const_definition ~ ("," ~ const_definition)* }
 const_definition          = _{ const_array_definition | const_variable_definition }
 const_variable_definition =  { identifier ~ "=" ~ expression }
 const_array_definition    =  { identifier ~ array_definition_lengths ~ "=" ~ initializer_list }
 
-declaration         = _{ int ~ definition ~ ("," ~ definition)* }
+definitions         = _{ int ~ definition ~ ("," ~ definition)* }
 definition          = _{ array_definition | variable_definition }
 variable_definition =  { identifier ~ ("=" ~ expression)? }
 array_definition    =  { identifier ~ array_definition_lengths ~ ("=" ~ initializer_list)? }
@@ -100,8 +100,8 @@ function_call =  { identifier ~ "(" ~ argument_list? ~ ")" }
 argument_list = _{ expression ~ ("," ~ expression)* }
 
 return_statement = { return_keyword ~ expression? }
-while_statement  = { "while" ~ "(" ~ expression ~ ")" ~ (non_block_block_item | block) }
-if_statement     = { "if" ~ "(" ~ expression ~ ")" ~ (non_block_block_item | block) ~ ("else" ~ (non_block_block_item | block))? }
+while_statement  = { "while" ~ "(" ~ expression ~ ")" ~ (non_block_block_item_in_if_or_while | block) }
+if_statement     = { "if" ~ "(" ~ expression ~ ")" ~ (non_block_block_item_in_if_or_while | block) ~ ("else" ~ (non_block_block_item_in_if_or_while | block))? }
 
 integer_hex = @{ ("0x" | "0X") ~ ASCII_HEX_DIGIT+ }
 integer_dec = @{ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT* }
@@ -114,6 +114,9 @@ break_statement    = { "break" }
 
 block = { "{" ~ (block | non_block_block_item)* ~ "}" }
 
-statement            =  { (continue_statement | break_statement | return_statement | expression) ~ ";" | while_statement | if_statement }
-declarations         =  { (const_declaration | declaration) ~ ";" }
-non_block_block_item = _{ statement | declarations }
+statement            =  { (continue_statement | break_statement | return_statement | expression | "") ~ ";" | while_statement | if_statement }
+all_definitions      = _{ (const_definitions | definitions) ~ ";" }
+non_block_block_item = _{ statement | all_definitions }
+
+definitions_in_if_or_while_non_block =  { (const_definitions | definitions) ~ ";" }
+non_block_block_item_in_if_or_while  = _{ statement | definitions_in_if_or_while_non_block }

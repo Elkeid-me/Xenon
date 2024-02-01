@@ -157,69 +157,70 @@ impl AstBuilder {
         pair.into_inner().map(|pair| self.parse_init_list_item(pair)).collect()
     }
 
-    fn parse_declarations(&self, pair: Pair<Rule>) -> Declarations {
-        pair.into_inner()
-            .skip(1)
-            .map(|pair| match pair.as_rule() {
-                Rule::const_variable_definition => {
-                    let mut iter = pair.into_inner();
-                    DeclarationItem::ConstVariableDefinition(
-                        iter.next().unwrap().as_str().to_string(),
-                        self.parse_expr(iter.next().unwrap()),
-                    )
+    fn parse_definition(&self, pair: Pair<Rule>) -> Definition {
+        match pair.as_rule() {
+            Rule::const_variable_definition => {
+                let mut iter = pair.into_inner();
+                Definition::ConstVariableDefinition(
+                    iter.next().unwrap().as_str().to_string(),
+                    self.parse_expr(iter.next().unwrap()),
+                )
+            }
+            Rule::variable_definition => {
+                let mut iter = pair.into_inner();
+                Definition::VariableDefinition(
+                    iter.next().unwrap().as_str().to_string(),
+                    match iter.next() {
+                        Some(p) => Some(self.parse_expr(p)),
+                        None => None,
+                    },
+                )
+            }
+            Rule::const_array_definition => {
+                let mut iter = pair.into_inner();
+                Definition::ConstArrayDefinition {
+                    identifier: iter.next().unwrap().as_str().to_string(),
+                    lengths: iter
+                        .next()
+                        .unwrap()
+                        .into_inner()
+                        .map(|expr| self.parse_expr(expr))
+                        .collect(),
+                    init_list: self.parse_init_list(iter.next().unwrap()),
                 }
-                Rule::variable_definition => {
-                    let mut iter = pair.into_inner();
-                    DeclarationItem::VariableDefinition(
-                        iter.next().unwrap().as_str().to_string(),
-                        match iter.next() {
-                            Some(p) => Some(self.parse_expr(p)),
-                            None => None,
-                        },
-                    )
+            }
+            Rule::array_definition => {
+                let mut iter = pair.into_inner();
+                Definition::ArrayDefinition {
+                    identifier: iter.next().unwrap().as_str().to_string(),
+                    lengths: iter
+                        .next()
+                        .unwrap()
+                        .into_inner()
+                        .map(|expr| self.parse_expr(expr))
+                        .collect(),
+                    init_list: match iter.next() {
+                        Some(iter) => Some(self.parse_init_list(iter)),
+                        None => None,
+                    },
                 }
-                Rule::const_array_definition => {
-                    let mut iter = pair.into_inner();
-                    DeclarationItem::ConstArrayDefinition {
-                        identifier: iter.next().unwrap().as_str().to_string(),
-                        lengths: iter
-                            .next()
-                            .unwrap()
-                            .into_inner()
-                            .map(|expr| self.parse_expr(expr))
-                            .collect(),
-                        init_list: self.parse_init_list(iter.next().unwrap()),
-                    }
-                }
-                Rule::array_definition => {
-                    let mut iter = pair.into_inner();
-                    DeclarationItem::ArrayDefinition {
-                        identifier: iter.next().unwrap().as_str().to_string(),
-                        lengths: iter
-                            .next()
-                            .unwrap()
-                            .into_inner()
-                            .map(|expr| self.parse_expr(expr))
-                            .collect(),
-                        init_list: match iter.next() {
-                            Some(iter) => Some(self.parse_init_list(iter)),
-                            None => None,
-                        },
-                    }
-                }
-                _ => {
-                    dbg!(pair);
-                    unreachable!()
-                }
-            })
-            .collect()
+            }
+            _ => {
+                dbg!(pair);
+                unreachable!()
+            }
+        }
     }
 
     fn parse_if_while_helper(&self, pair: Pair<Rule>) -> Block {
         match pair.as_rule() {
             Rule::block => self.parse_block(pair),
             Rule::statement => vec![BlockItem::Statement(Box::new(self.parse_statement(pair)))],
-            Rule::declarations => vec![BlockItem::Declarations(Box::new(self.parse_declarations(pair)))],
+            Rule::definitions_in_if_or_while_non_block => pair
+                .into_inner()
+                .skip(1)
+                .map(|pair| BlockItem::Definition(Box::new(self.parse_definition(pair))))
+                .collect(),
             rule => {
                 dbg!(rule);
                 unreachable!()
@@ -267,10 +268,14 @@ impl AstBuilder {
 
     fn parse_block(&self, pair: Pair<Rule>) -> Block {
         pair.into_inner()
+            .filter(|pair| !matches!(pair.as_rule(), Rule::int | Rule::const_definition_type))
             .map(|pair| match pair.as_rule() {
                 Rule::block => BlockItem::Block(Box::new(self.parse_block(pair))),
                 Rule::statement => BlockItem::Statement(Box::new(self.parse_statement(pair))),
-                Rule::declarations => BlockItem::Declarations(Box::new(self.parse_declarations(pair))),
+                Rule::variable_definition
+                | Rule::array_definition
+                | Rule::const_variable_definition
+                | Rule::const_array_definition => BlockItem::Definition(Box::new(self.parse_definition(pair))),
                 rule => {
                     dbg!(rule);
                     unreachable!()
@@ -324,7 +329,10 @@ impl AstBuilder {
 
     fn parse_global_item(&self, pair: Pair<Rule>) -> GlobalItem {
         match pair.as_rule() {
-            Rule::declarations => GlobalItem::Declaration(self.parse_declarations(pair)),
+            Rule::variable_definition
+            | Rule::array_definition
+            | Rule::const_variable_definition
+            | Rule::const_array_definition => GlobalItem::Definition(self.parse_definition(pair)),
             Rule::function_definition => self.parse_function_definition(pair),
             Rule::EOI => GlobalItem::EOI,
             rule => {
@@ -337,8 +345,7 @@ impl AstBuilder {
     pub fn build_ast(&self, code: &str) -> TranslationUnit {
         let translation_unit = SysYParser::parse(Rule::translation_unit, code).unwrap();
         translation_unit
-            .into_iter()
-            .filter(|pair| pair.as_rule() != Rule::EOI)
+            .filter(|pair| !matches!(pair.as_rule(), Rule::EOI | Rule::int | Rule::const_definition_type))
             .map(|p| Box::new(self.parse_global_item(p)))
             .collect()
     }

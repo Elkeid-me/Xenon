@@ -2,7 +2,7 @@ pub type TranslationUnit = Vec<Box<GlobalItem>>;
 
 #[derive(Debug)]
 pub enum GlobalItem {
-    Declaration(Declarations),
+    Definition(Definition),
     FunctionDefinition {
         return_void: bool,
         identifier: String,
@@ -18,10 +18,10 @@ pub enum Parameter {
     Array(String, Vec<Expr>),
 }
 
-pub type Declarations = Vec<DeclarationItem>;
+// pub type Declarations = Vec<DeclarationItem>;
 
 #[derive(Debug)]
-pub enum DeclarationItem {
+pub enum Definition {
     ConstVariableDefinition(String, Expr),
     ConstArrayDefinition {
         identifier: String,
@@ -65,7 +65,7 @@ pub type Block = Vec<BlockItem>;
 
 #[derive(Debug)]
 pub enum BlockItem {
-    Declarations(Box<Declarations>),
+    Definition(Box<Definition>),
     Block(Box<Block>),
     Statement(Box<Statement>),
 }
