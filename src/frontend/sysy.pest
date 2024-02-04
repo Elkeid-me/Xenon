@@ -13,7 +13,7 @@ array_parameter_definition    =  { int ~ identifier ~ "[" ~ "]" }
 variable_parameter_definition =  { int ~ identifier }
 int                           = @{ "int" ~ WHITE_SPACE+ }
 void                          = @{ "void" ~ WHITE_SPACE+ }
-return_keyword                = @{ "return" ~ WHITE_SPACE+ }
+return_keyword                = @{ "return" ~ !(ASCII_ALPHANUMERIC | "_") }
 const_definition_type         = @{ ("const" ~ WHITE_SPACE+ ~ "int" | "int" ~ WHITE_SPACE+ ~ "const") ~ WHITE_SPACE+ }
 
 function_return_type = _{ int | void }
