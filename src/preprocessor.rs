@@ -1,5 +1,3 @@
-use std::fs;
-
 enum State {
     Code,
     CodeWithBackSlash,
