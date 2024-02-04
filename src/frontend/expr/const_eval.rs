@@ -79,35 +79,26 @@ pub fn const_eval(expr: &mut Expr, context: &SymbolTable) -> Result<(Type, bool,
         // 而只有整型常量才能编译期计算.
         //
         // 整型常量必定带有初始化列表, 而初始化列表已经检查过并计算过了, 所以一定是 `InitializerListItem::Expr(Expr::Num(_))`
-        Expr::Identifier(identifier) => match context.search(identifier.as_str()) {
-            Some(SymbolTableItem {
-                is_const,
-                type_,
-                init_list,
-            }) => {
-                if *is_const && matches!(type_, Type::Int) {
-                    match init_list[0] {
-                        InitializerListItem::Expr(Expr::Num(i)) => {
-                            *expr = Expr::Num(i);
-                            Ok((Type::Int, false, Some(i)))
-                        }
-                        _ => unreachable!(),
-                    }
-                } else {
-                    Ok((type_.clone(), false, None))
-                }
+        Expr::Identifier(identifier) => match context.search(identifier) {
+            Some(SymbolTableItem::ConstVariable(i)) => {
+                *expr = Expr::Num(*i);
+                Ok((Type::Int, false, Some(*i)))
             }
-            None => Err(()),
+            Some(SymbolTableItem::Variable(_)) => Ok((Type::Int, true, None)),
+            _ => Err(()),
         },
-        Expr::FunctionCall(identifier, arg_list) => {
-            // for (expr, expect_type) in arg_list.iter_mut().zip(arg_list.iter()) {
-            //     let t = const_eval(expr, context);
-            //     if !todo!("can_convert_to(t.1, expect_type)") {
-            //         return (Type::Void, false, false, None);
-            //     }
-            // }
-            Ok((todo!(), false, None))
-        }
+        Expr::FunctionCall(identifier, arg_list) => match context.search(identifier) {
+            Some(SymbolTableItem::Function(type_, para_types)) => {
+                for (expr, expect_type) in arg_list.iter_mut().zip(para_types) {
+                    let (expr_type, _, _) = const_eval(expr, context)?;
+                    if !expr_type.can_convert_to(type_) {
+                        return Err(());
+                    }
+                }
+                Ok((type_.clone(), false, None))
+            }
+            _ => Err(()),
+        },
         Expr::ArrayElement(identifier, length) => todo!(),
     }
 }
