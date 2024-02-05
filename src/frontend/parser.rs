@@ -5,7 +5,7 @@ use pest::pratt_parser::{
 use pest::{iterators::Pair, Parser};
 use pest_derive::Parser;
 
-use super::ast::{ArithmeticOp::*, AssignOp::*, Expr::*, InfixOp::*, UnaryOp::*, *};
+use super::ast::{ArithmeticOp::*, ArithmeticUnaryOp::*, AssignOp::*, Expr::*, InfixOp::*, OtherUnaryOp::*, UnaryOp::*, *};
 
 #[derive(Parser)]
 #[grammar = "frontend/sysy.pest"]
@@ -118,22 +118,22 @@ impl AstBuilder {
                 }
             })
             .map_prefix(|op, rhs| match op.as_rule() {
-                Rule::prefix_self_increase => UnaryExpr(PrefixSelfIncrease, Box::new(rhs)),
-                Rule::prefix_self_decrease => UnaryExpr(PrefixSelfDecrease, Box::new(rhs)),
-                Rule::logical_not => UnaryExpr(LogicalNot, Box::new(rhs)),
-                Rule::negative => UnaryExpr(Negative, Box::new(rhs)),
-                Rule::positive => UnaryExpr(Positive, Box::new(rhs)),
-                Rule::address_of => UnaryExpr(AddressOf, Box::new(rhs)),
-                Rule::bit_not => UnaryExpr(BitNot, Box::new(rhs)),
-                Rule::indirection => UnaryExpr(Indirection, Box::new(rhs)),
+                Rule::prefix_self_increase => UnaryExpr(Other(PrefixSelfIncrease), Box::new(rhs)),
+                Rule::prefix_self_decrease => UnaryExpr(Other(PrefixSelfDecrease), Box::new(rhs)),
+                Rule::logical_not => UnaryExpr(ArithUnary(LogicalNot), Box::new(rhs)),
+                Rule::negative => UnaryExpr(ArithUnary(Negative), Box::new(rhs)),
+                Rule::positive => UnaryExpr(ArithUnary(Positive), Box::new(rhs)),
+                Rule::address_of => UnaryExpr(Other(AddressOf), Box::new(rhs)),
+                Rule::bit_not => UnaryExpr(ArithUnary(BitNot), Box::new(rhs)),
+                Rule::indirection => UnaryExpr(Other(Indirection), Box::new(rhs)),
                 rule => {
                     dbg!(rule);
                     unreachable!()
                 }
             })
             .map_postfix(|lhs, op| match op.as_rule() {
-                Rule::postfix_self_increase => UnaryExpr(PostfixSelfIncrease, Box::new(lhs)),
-                Rule::postfix_self_decrease => UnaryExpr(PostfixSelfDecrease, Box::new(lhs)),
+                Rule::postfix_self_increase => UnaryExpr(Other(PostfixSelfIncrease), Box::new(lhs)),
+                Rule::postfix_self_decrease => UnaryExpr(Other(PostfixSelfDecrease), Box::new(lhs)),
                 rule => {
                     dbg!(rule);
                     unreachable!()

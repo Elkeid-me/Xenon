@@ -1,22 +1,22 @@
 use super::{
-    super::ast::{ArithmeticOp::*, Expr, InfixOp::*, UnaryOp},
+    super::ast::{ArithmeticOp::*, ArithmeticUnaryOp::*, Expr, InfixOp::*, UnaryOp::*},
     super::checker::*,
     types::Type,
 };
 
 // 类型, 是否合法, 是否是左值, 编译期计算值 (如果有)
 // 这里, "左值" 的概念即 C 中的可修改左值 (SysY 中的 const 必须为编译期常量表达式)
-pub fn const_eval(expr: &mut Expr, context: &SymbolTable) -> Result<(Type, bool, Option<i32>), ()> {
+pub fn const_eval(expr: &mut Expr, context: &SymbolTable) -> Result<(Type, bool, Option<i32>), String> {
     match expr {
         Expr::InfixExpr(lhs, op, rhs) => {
             let (lhs_type, lhs_left_value, lhs_value) = const_eval(lhs, context)?;
             let (rhs_type, _, rhs_value) = const_eval(rhs, context)?;
             match op {
-                Assign(op) => {
-                    if !lhs_left_value {
-                        return Err(());
+                Assign(_) => {
+                    if !lhs_left_value || !lhs_type.can_convert_to(&rhs_type) {
+                        return Err(format!("{0:?} 不是左值表达式，或 {1:?} 无法转换到 {0:?} 的类型", lhs, rhs,));
                     }
-                    todo!()
+                    Ok((lhs_type, true, None))
                 }
                 Arith(op) => {
                     if let (Some(lhs), Some(rhs)) = (lhs_value, rhs_value) {
@@ -45,31 +45,48 @@ pub fn const_eval(expr: &mut Expr, context: &SymbolTable) -> Result<(Type, bool,
                     } else if matches!((lhs_type, rhs_type), (Type::Int, Type::Int)) {
                         Ok((Type::Int, false, None))
                     } else {
-                        Err(())
+                        Err(format!("{0:?} 或 {1:?} 不是整数表达式", lhs, rhs))
                     }
                 }
             }
         }
-        Expr::UnaryExpr(op, rhs) => {
-            let (exp_type, exp_left_value, exp_value) = const_eval(rhs, context)?;
+        Expr::UnaryExpr(op, e) => {
+            let (exp_type, _, exp_value) = const_eval(e, context)?;
             match op {
-                UnaryOp::PostfixSelfIncrease
-                | UnaryOp::PostfixSelfDecrease
-                | UnaryOp::PrefixSelfIncrease
-                | UnaryOp::PrefixSelfDecrease => {
-                    if !exp_left_value || !matches!(exp_type, Type::Int) {
-                        // 看起来暂时不需要数组的自增自减
-                        Err(())
+                ArithUnary(op) => {
+                    if let Some(i) = exp_value {
+                        let value = match op {
+                            LogicalNot => (i == 0).into(),
+                            Negative => -i,
+                            Positive => i,
+                            BitNot => !i,
+                        };
+                        *expr = Expr::Num(value);
+                        Ok((Type::Int, false, Some(value)))
+                    } else if matches!(exp_type, Type::Int) {
+                        Ok((Type::Int, false, None))
                     } else {
-                        Ok((Type::Int, false, None)) // C 标准中, 前缀自增/自减运算符为右值
+                        Err(format!("{:?} 不是整数表达式", e))
                     }
                 }
-                UnaryOp::LogicalNot => todo!(),
-                UnaryOp::Negative => todo!(),
-                UnaryOp::Positive => todo!(),
-                UnaryOp::BitNot => todo!(),
-                UnaryOp::AddressOf => todo!(),
-                UnaryOp::Indirection => todo!(),
+                Other(_) => todo!(),
+                // UnaryOp::PostfixSelfIncrease
+                // | UnaryOp::PostfixSelfDecrease
+                // | UnaryOp::PrefixSelfIncrease
+                // | UnaryOp::PrefixSelfDecrease => {
+                //     if !exp_left_value || !matches!(exp_type, Type::Int) {
+                //         // 看起来暂时不需要数组的自增自减
+                //         Err(())
+                //     } else {
+                //         Ok((Type::Int, false, None)) // C 标准中, 前缀自增/自减运算符为右值
+                //     }
+                // }
+                // UnaryOp::LogicalNot => todo!(),
+                // UnaryOp::Negative => todo!(),
+                // UnaryOp::Positive => todo!(),
+                // UnaryOp::BitNot => todo!(),
+                // UnaryOp::AddressOf => todo!(),
+                // UnaryOp::Indirection => todo!(),
             }
         }
         Expr::Num(val) => Ok((Type::Int, false, Some(*val))),
@@ -88,48 +105,53 @@ pub fn const_eval(expr: &mut Expr, context: &SymbolTable) -> Result<(Type, bool,
             Some(SymbolTableItem::Array(length)) | Some(SymbolTableItem::ConstArray(length, _)) => {
                 Ok((Type::Array(*length), false, None))
             }
-            _ => Err(()),
+            _ => Err(format!("{} 不存在，或不是整型、数组或指针变量", identifier)),
         },
         Expr::FunctionCall(identifier, arg_list) => match context.search(identifier) {
             Some(SymbolTableItem::Function(type_, para_types)) => {
+                if arg_list.len() != para_types.len() {
+                    return Err("实参列表长度与函数定义不匹配".to_string());
+                }
                 for (expr, expect_type) in arg_list.iter_mut().zip(para_types) {
                     let (expr_type, _, _) = const_eval(expr, context)?;
-                    if todo!() {
-                        return Err(());
+                    if !expr_type.can_convert_to(&expect_type) {
+                        return Err(format!("{:?} 无法转换到类型 {:?}", expr, expect_type));
                     }
                 }
                 Ok((type_.clone(), false, None))
             }
-            _ => Err(()),
+            _ => Err(format!("{} 不存在，或不是函数", identifier)),
         },
         Expr::ArrayElement(identifier, length) => {
             let (type_, _, value) = const_eval(length, context)?;
             if !matches!(type_, Type::Int) {
-                return Err(());
+                return Err(format!("表达式 {:?} 不是整型表达式", length));
             }
             match context.search(identifier) {
                 Some(SymbolTableItem::ConstArray(length, init_list)) => {
                     if let Some(subscript) = value {
                         let subscript = subscript as usize;
                         if (subscript) < init_list.len() {
+                            *expr = Expr::Num(init_list[subscript]);
                             Ok((Type::Int, false, Some(init_list[subscript])))
                         } else if (subscript) < *length {
+                            *expr = Expr::Num(0);
                             Ok((Type::Int, false, Some(0)))
                         } else {
-                            Err(())
+                            Err(format!("{} 超出索引范围 {}", subscript, *length - 1))
                         }
                     } else {
                         Ok((Type::Int, false, None))
                     }
                 }
                 Some(SymbolTableItem::Pointer) | Some(SymbolTableItem::Array(_)) => Ok((Type::Int, true, None)),
-                _ => todo!(),
+                _ => Err(format!("{} 不存在，或不是数组/指针变量", identifier)),
             }
         }
     }
 }
 
-pub fn check_expr(expr: &mut Expr, context: &SymbolTable) -> Result<(), ()> {
+pub fn check_expr(expr: &mut Expr, context: &SymbolTable) -> Result<(), String> {
     const_eval(expr, context)?;
     Ok(())
 }

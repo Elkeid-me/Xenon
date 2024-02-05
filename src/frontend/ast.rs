@@ -115,17 +115,26 @@ pub enum InfixOp {
 }
 
 #[derive(Debug)]
-pub enum UnaryOp {
+pub enum ArithmeticUnaryOp {
+    LogicalNot,
+    Negative,
+    Positive,
+    BitNot,
+}
+
+#[derive(Debug)]
+pub enum OtherUnaryOp {
     PostfixSelfIncrease,
     PostfixSelfDecrease,
     PrefixSelfIncrease,
     PrefixSelfDecrease,
-    LogicalNot,
-    Negative,
-    Positive,
     AddressOf,
     Indirection,
-    BitNot,
+}
+#[derive(Debug)]
+pub enum UnaryOp {
+    ArithUnary(ArithmeticUnaryOp),
+    Other(OtherUnaryOp),
 }
 
 #[derive(Debug)]

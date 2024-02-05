@@ -8,7 +8,9 @@ pub struct Frontend {}
 
 pub fn generate_ast(code: &str) -> ast::TranslationUnit {
     let mut ast = parser::AstBuilder::new().build_ast(code);
-    checker::Checker::new().check(&mut ast);
+    if let Err(s) = checker::Checker::new().check(&mut ast) {
+        println!("{}", s);
+    }
     ast
 }
 

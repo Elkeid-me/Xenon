@@ -21,7 +21,7 @@ pub trait Scope<'a> {
     fn new() -> Self;
     fn search(&self, identifier: &str) -> Option<&SymbolTableItem>;
 
-    fn insert_definition(&mut self, identifier: &'a str, symbol: SymbolTableItem) -> Result<(), ()>;
+    fn insert_definition(&mut self, identifier: &'a str, symbol: SymbolTableItem) -> Result<(), String>;
 
     fn enter_scope(&mut self);
     fn exit_scope(&mut self);
@@ -33,12 +33,17 @@ impl<'a> Scope<'a> for SymbolTable<'a> {
     }
 
     fn search(&self, identifier: &str) -> Option<&SymbolTableItem> {
-        self.last().unwrap().get(identifier)
+        for map in self.iter().rev() {
+            if let Some(info) = map.get(identifier) {
+                return Some(info);
+            }
+        }
+        return None;
     }
 
-    fn insert_definition(&mut self, identifier: &'a str, symbol: SymbolTableItem) -> Result<(), ()> {
+    fn insert_definition(&mut self, identifier: &'a str, symbol: SymbolTableItem) -> Result<(), String> {
         match self.last_mut().unwrap().insert(identifier, symbol) {
-            Some(_) => Err(()),
+            Some(_) => Err(format!("标识符 {} 在当前作用域中已存在", identifier)),
             None => Ok(()),
         }
     }
@@ -63,11 +68,11 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn process_definition(&mut self, definition: &'a mut Definition) -> Result<(), ()> {
+    fn process_definition(&mut self, definition: &'a mut Definition) -> Result<(), String> {
         match definition {
             Definition::ConstVariableDefinition(identifier, init) => match const_eval(init, &self.table) {
                 Ok((_, _, Some(i))) => self.table.insert_definition(identifier, SymbolTableItem::ConstVariable(i)),
-                _ => Err(()),
+                _ => Err(format!("{:?} 不是常量表达式", init)),
             },
             Definition::ConstArrayDefinition {
                 identifier,
@@ -76,7 +81,7 @@ impl<'a> Checker<'a> {
             } => {
                 for expr in init_list.iter_mut() {
                     if let None = const_eval(expr, &self.table)?.2 {
-                        return Err(());
+                        return Err(format!("{:?} 不是常量表达式", expr));
                     }
                 }
                 let init_list: Vec<i32> = init_list
@@ -84,20 +89,21 @@ impl<'a> Checker<'a> {
                     .map(|p| if let Expr::Num(i) = p { *i } else { unreachable!() })
                     .collect();
                 if let Some(length) = const_eval(length, &self.table)?.2 {
-                    if (length as usize) < init_list.len() {
-                        return Err(());
+                    let length = length as usize;
+                    if (length) < init_list.len() {
+                        return Err(format!("数组长度 {} 小于初始化列表长度 {}", length, init_list.len()));
                     }
                     self.table
-                        .insert_definition(identifier, SymbolTableItem::ConstArray(length as usize, init_list))
+                        .insert_definition(identifier, SymbolTableItem::ConstArray(length, init_list))
                 } else {
-                    Err(())
+                    Err(format!("{:?} 不是常量表达式", length))
                 }
             }
             Definition::VariableDefinition(identifier, init) => {
                 if let Some(expr) = init {
                     let type_ = const_eval(expr, &self.table)?.0;
                     if !matches!(type_, Type::Int) {
-                        return Err(());
+                        return Err(format!("{:?} 不是整型表达式", expr));
                     }
                 }
                 self.table.insert_definition(identifier, SymbolTableItem::Variable)
@@ -108,24 +114,27 @@ impl<'a> Checker<'a> {
                 init_list,
             } => {
                 if let Some(length) = const_eval(length, &self.table)?.2 {
+                    let length = length as usize;
                     if let Some(init_list) = init_list {
                         for expr in init_list.iter_mut() {
                             let type_ = const_eval(expr, &self.table)?.0;
                             if !matches!(type_, Type::Int) {
-                                return Err(());
+                                return Err(format!("{:?} 不是整型表达式", expr));
                             }
                         }
+                        if length < init_list.len() {
+                            return Err(format!("数组长度 {} 小于初始化列表长度 {}", length, init_list.len()));
+                        }
                     }
-                    self.table
-                        .insert_definition(identifier, SymbolTableItem::Array(length as usize))
+                    self.table.insert_definition(identifier, SymbolTableItem::Array(length))
                 } else {
-                    Err(())
+                    Err(format!("{:?} 不是常量表达式", length))
                 }
             }
         }
     }
 
-    fn process_block(&mut self, block: &'a mut Block, return_void: bool, in_while: bool) -> Result<(), ()> {
+    fn process_block(&mut self, block: &'a mut Block, return_void: bool, in_while: bool) -> Result<(), String> {
         self.table.enter_scope();
         for statement in block.iter_mut() {
             match statement {
@@ -148,12 +157,17 @@ impl<'a> Checker<'a> {
                     }
                     Statement::Return(expr) => match (expr, return_void) {
                         (None, true) => (),
-                        (Some(_), true) | (None, false) => return Err(()),
-                        (Some(expr), false) => check_expr(expr, &self.table)?,
+                        (Some(_), true) | (None, false) => return Err("return 语句返回表达式的类型与函数定义不匹配".to_string()),
+                        (Some(expr), false) => {
+                            let (type_, _, _) = const_eval(expr, &self.table)?;
+                            if !matches!(type_, Type::Int) {
+                                return Err(format!("return 语句返回的 {:?} 类型与函数定义不匹配", expr));
+                            }
+                        }
                     },
                     Statement::Break | Statement::Continue => {
                         if !in_while {
-                            return Err(());
+                            return Err("在 while 语句外使用了 break 或 continue".to_string());
                         }
                     }
                 },
@@ -163,7 +177,7 @@ impl<'a> Checker<'a> {
         Ok(())
     }
 
-    pub fn check(&mut self, ast: &'a mut TranslationUnit) -> Result<(), ()> {
+    pub fn check(&mut self, ast: &'a mut TranslationUnit) -> Result<(), String> {
         for i in ast.iter_mut() {
             match i.as_mut() {
                 GlobalItem::Definition(definition) => self.process_definition(definition)?,
