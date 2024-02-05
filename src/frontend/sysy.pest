@@ -9,7 +9,7 @@ function_definition           =  { signature ~ block }
 signature                     =  { function_return_type ~ identifier ~ "(" ~ parameter_list ~ ")" }
 parameter_list                =  { parameter_definition ~ ("," ~ parameter_definition)* | "void" | "" }
 parameter_definition          = _{ array_parameter_definition | variable_parameter_definition }
-array_parameter_definition    =  { int ~ identifier ~ "[" ~ "]" }
+array_parameter_definition    =  { int ~ identifier ~ "[" ~ "]" ~ array_lengths? }
 variable_parameter_definition =  { int ~ identifier }
 int                           = @{ "int" ~ WHITE_SPACE+ }
 void                          = @{ "void" ~ WHITE_SPACE+ }
@@ -21,14 +21,14 @@ function_return_type = _{ int | void }
 const_definitions         = _{ const_definition_type ~ const_definition ~ ("," ~ const_definition)* }
 const_definition          = _{ const_array_definition | const_variable_definition }
 const_variable_definition =  { identifier ~ "=" ~ expression }
-const_array_definition    =  { identifier ~ array_definition_lengths ~ "=" ~ initializer_list }
+const_array_definition    =  { identifier ~ array_lengths ~ "=" ~ initializer_list }
 
 definitions         = _{ int ~ definition ~ ("," ~ definition)* }
 definition          = _{ array_definition | variable_definition }
 variable_definition =  { identifier ~ ("=" ~ expression)? }
-array_definition    =  { identifier ~ array_definition_lengths ~ ("=" ~ initializer_list)? }
+array_definition    =  { identifier ~ array_lengths ~ ("=" ~ initializer_list)? }
 
-array_definition_lengths = _{ array_subscript }
+array_lengths = _{ array_subscript }
 
 initializer_list         =  { "{" ~ initializer_list_content? ~ "}" }
 // initializer_list_content = _{ initializer_list ~ ("," ~ initializer_list)* | expression ~ ("," ~ expression)* }
