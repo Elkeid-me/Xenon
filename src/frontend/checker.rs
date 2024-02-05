@@ -1,8 +1,8 @@
 use super::{
     ast::*,
     expr::{
-        const_eval::{check_expr, const_eval},
-        types::Type,
+        const_eval::{check_expr, const_eval, expr_type},
+        types::Type::{self, *},
     },
 };
 use std::{collections::HashMap, vec};
@@ -14,6 +14,8 @@ pub enum SymbolTableItem {
     Function(Type, Vec<Type>),
     Pointer,
 }
+
+use SymbolTableItem::{Array, ConstArray, ConstVariable, Function, Variable};
 
 pub type SymbolTable<'a> = Vec<HashMap<&'a str, SymbolTableItem>>;
 
@@ -64,14 +66,23 @@ pub struct Checker<'a> {
 impl<'a> Checker<'a> {
     pub fn new() -> Self {
         Self {
-            table: vec![HashMap::new()],
+            table: vec![HashMap::from([
+                ("getint", Function(Int, Vec::new())),
+                ("getch", Function(Int, Vec::new())),
+                ("getarray", Function(Int, vec![Pointer])),
+                ("putint", Function(Void, vec![Int])),
+                ("putch", Function(Void, vec![Int])),
+                ("putarray", Function(Int, vec![Int, Pointer])),
+                ("starttime", Function(Void, Vec::new())),
+                ("stoptime", Function(Void, Vec::new())),
+            ])],
         }
     }
 
     fn process_definition(&mut self, definition: &'a mut Definition) -> Result<(), String> {
         match definition {
             Definition::ConstVariableDefinition(identifier, init) => match const_eval(init, &self.table) {
-                Ok((_, _, Some(i))) => self.table.insert_definition(identifier, SymbolTableItem::ConstVariable(i)),
+                Ok((_, _, Some(i))) => self.table.insert_definition(identifier, ConstVariable(i)),
                 _ => Err(format!("{:?} 不是常量表达式", init)),
             },
             Definition::ConstArrayDefinition {
@@ -101,12 +112,11 @@ impl<'a> Checker<'a> {
             }
             Definition::VariableDefinition(identifier, init) => {
                 if let Some(expr) = init {
-                    let type_ = const_eval(expr, &self.table)?.0;
-                    if !matches!(type_, Type::Int) {
+                    if !matches!(expr_type(expr, &self.table)?, Int) {
                         return Err(format!("{:?} 不是整型表达式", expr));
                     }
                 }
-                self.table.insert_definition(identifier, SymbolTableItem::Variable)
+                self.table.insert_definition(identifier, Variable)
             }
             Definition::ArrayDefinition {
                 identifier,
@@ -117,8 +127,7 @@ impl<'a> Checker<'a> {
                     let length = length as usize;
                     if let Some(init_list) = init_list {
                         for expr in init_list.iter_mut() {
-                            let type_ = const_eval(expr, &self.table)?.0;
-                            if !matches!(type_, Type::Int) {
+                            if !matches!(expr_type(expr, &self.table)?, Int) {
                                 return Err(format!("{:?} 不是整型表达式", expr));
                             }
                         }
@@ -126,7 +135,7 @@ impl<'a> Checker<'a> {
                             return Err(format!("数组长度 {} 小于初始化列表长度 {}", length, init_list.len()));
                         }
                     }
-                    self.table.insert_definition(identifier, SymbolTableItem::Array(length))
+                    self.table.insert_definition(identifier, Array(length))
                 } else {
                     Err(format!("{:?} 不是常量表达式", length))
                 }
@@ -159,8 +168,7 @@ impl<'a> Checker<'a> {
                         (None, true) => (),
                         (Some(_), true) | (None, false) => return Err("return 语句返回表达式的类型与函数定义不匹配".to_string()),
                         (Some(expr), false) => {
-                            let (type_, _, _) = const_eval(expr, &self.table)?;
-                            if !matches!(type_, Type::Int) {
+                            if !matches!(expr_type(expr, &self.table)?, Int) {
                                 return Err(format!("return 语句返回的 {:?} 类型与函数定义不匹配", expr));
                             }
                         }
@@ -199,18 +207,18 @@ impl<'a> Checker<'a> {
                     // let parameter_type = parameter_list
                     //     .iter()
                     //     .map(|p| match p {
-                    //         Parameter::Int(_) => Type::Int,
-                    //         Parameter::Pointer(_, lengths) => Type::Pointer(Box::new(Type::Int)),
+                    //         Parameter::Int(_) => Int,
+                    //         Parameter::Pointer(_, lengths) => Type::Pointer(Box::new(Int)),
                     //     })
                     //     .collect();
                     let parameter_type = parameter_list
                         .iter()
                         .map(|p| match p {
-                            Parameter::Int(_) => Type::Int,
-                            Parameter::Pointer(_) => Type::Pointer,
+                            Parameter::Int(_) => Int,
+                            Parameter::Pointer(_) => Pointer,
                         })
                         .collect();
-                    let return_type = if *return_void { Type::Void } else { Type::Int };
+                    let return_type = if *return_void { Void } else { Int };
                     self.table
                         .insert_definition(identifier, SymbolTableItem::Function(return_type, parameter_type))?;
                     // 符号表中加入参数定义
