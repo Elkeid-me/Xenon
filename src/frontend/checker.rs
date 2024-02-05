@@ -6,21 +6,22 @@ use super::{
     },
 };
 use std::{collections::HashMap, vec};
-pub enum SymbolTableItem<'a> {
+pub enum SymbolTableItem {
     ConstVariable(i32),
-    Variable(Option<&'a Expr>),
-    ConstArray(i32),
-    Array(Option<i32>),
+    Variable,
+    ConstArray(usize, Vec<i32>),
+    Array(usize),
     Function(Type, Vec<Type>),
+    Pointer,
 }
 
-pub type SymbolTable<'a> = Vec<HashMap<&'a str, SymbolTableItem<'a>>>;
+pub type SymbolTable<'a> = Vec<HashMap<&'a str, SymbolTableItem>>;
 
 pub trait Scope<'a> {
     fn new() -> Self;
     fn search(&self, identifier: &str) -> Option<&SymbolTableItem>;
 
-    fn insert_definition(&mut self, identifier: &'a str, symbol: SymbolTableItem<'a>) -> Result<(), ()>;
+    fn insert_definition(&mut self, identifier: &'a str, symbol: SymbolTableItem) -> Result<(), ()>;
 
     fn enter_scope(&mut self);
     fn exit_scope(&mut self);
@@ -35,7 +36,7 @@ impl<'a> Scope<'a> for SymbolTable<'a> {
         self.last().unwrap().get(identifier)
     }
 
-    fn insert_definition(&mut self, identifier: &'a str, symbol: SymbolTableItem<'a>) -> Result<(), ()> {
+    fn insert_definition(&mut self, identifier: &'a str, symbol: SymbolTableItem) -> Result<(), ()> {
         match self.last_mut().unwrap().insert(identifier, symbol) {
             Some(_) => Err(()),
             None => Ok(()),
@@ -70,22 +71,57 @@ impl<'a> Checker<'a> {
             },
             Definition::ConstArrayDefinition {
                 identifier,
-                lengths,
+                length,
                 init_list,
-            } => todo!(),
-            Definition::VariableDefinition(identifier, init) => match init {
-                Some(expr) => {
-                    const_eval(expr, &self.table)?;
-                    self.table
-                        .insert_definition(identifier, SymbolTableItem::Variable(Some(expr)))
+            } => {
+                for expr in init_list.iter_mut() {
+                    if let None = const_eval(expr, &self.table)?.2 {
+                        return Err(());
+                    }
                 }
-                None => self.table.insert_definition(identifier, SymbolTableItem::Variable(None)),
-            },
+                let init_list: Vec<i32> = init_list
+                    .iter()
+                    .map(|p| if let Expr::Num(i) = p { *i } else { unreachable!() })
+                    .collect();
+                if let Some(length) = const_eval(length, &self.table)?.2 {
+                    if (length as usize) < init_list.len() {
+                        return Err(());
+                    }
+                    self.table
+                        .insert_definition(identifier, SymbolTableItem::ConstArray(length as usize, init_list))
+                } else {
+                    Err(())
+                }
+            }
+            Definition::VariableDefinition(identifier, init) => {
+                if let Some(expr) = init {
+                    let type_ = const_eval(expr, &self.table)?.0;
+                    if !matches!(type_, Type::Int) {
+                        return Err(());
+                    }
+                }
+                self.table.insert_definition(identifier, SymbolTableItem::Variable)
+            }
             Definition::ArrayDefinition {
                 identifier,
-                lengths,
+                length,
                 init_list,
-            } => todo!(),
+            } => {
+                if let Some(length) = const_eval(length, &self.table)?.2 {
+                    if let Some(init_list) = init_list {
+                        for expr in init_list.iter_mut() {
+                            let type_ = const_eval(expr, &self.table)?.0;
+                            if !matches!(type_, Type::Int) {
+                                return Err(());
+                            }
+                        }
+                    }
+                    self.table
+                        .insert_definition(identifier, SymbolTableItem::Array(length as usize))
+                } else {
+                    Err(())
+                }
+            }
         }
     }
 
@@ -137,14 +173,40 @@ impl<'a> Checker<'a> {
                     parameter_list,
                     block,
                 } => {
-                    let parameter_type = todo!();
+                    // for p in parameter_list.iter_mut() {
+                    //     if let Parameter::Pointer(_, exprs) = p {
+                    //         for expr in exprs.iter_mut() {
+                    //             if let None = const_eval(expr, &self.table)?.2 {
+                    //                 return Err(());
+                    //             }
+                    //         }
+                    //     }
+                    // }
+                    // let parameter_type = parameter_list
+                    //     .iter()
+                    //     .map(|p| match p {
+                    //         Parameter::Int(_) => Type::Int,
+                    //         Parameter::Pointer(_, lengths) => Type::Pointer(Box::new(Type::Int)),
+                    //     })
+                    //     .collect();
+                    let parameter_type = parameter_list
+                        .iter()
+                        .map(|p| match p {
+                            Parameter::Int(_) => Type::Int,
+                            Parameter::Pointer(_) => Type::Pointer,
+                        })
+                        .collect();
                     let return_type = if *return_void { Type::Void } else { Type::Int };
                     self.table
                         .insert_definition(identifier, SymbolTableItem::Function(return_type, parameter_type))?;
-
                     // 符号表中加入参数定义
                     self.table.enter_scope();
-
+                    for p in parameter_list.iter() {
+                        match p {
+                            Parameter::Int(identifier) => self.table.insert_definition(identifier, SymbolTableItem::Variable)?,
+                            Parameter::Pointer(identifier) => self.table.insert_definition(identifier, SymbolTableItem::Pointer)?,
+                        }
+                    }
                     // 解析块
                     self.process_block(block, *return_void, false)?;
                     self.table.exit_scope();

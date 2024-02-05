@@ -3,6 +3,6 @@
 pub enum Type {
     Int,
     Void,
-    Array(Box<Type>, Vec<usize>),
-    Pointer(Box<Type>),
+    Array(usize),
+    Pointer,
 }

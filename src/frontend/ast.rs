@@ -14,7 +14,8 @@ pub enum GlobalItem {
 #[derive(Debug)]
 pub enum Parameter {
     Int(String),
-    Pointer(String, Vec<Expr>),
+    Pointer(String),
+    // Pointer(String, Vec<Expr>),
 }
 
 #[derive(Debug)]
@@ -22,24 +23,26 @@ pub enum Definition {
     ConstVariableDefinition(String, Expr),
     ConstArrayDefinition {
         identifier: String,
-        lengths: Vec<Expr>,
+        // lengths: Vec<Expr>,
+        length: Expr,
         init_list: InitializerList,
     },
     VariableDefinition(String, Option<Expr>),
     ArrayDefinition {
         identifier: String,
-        lengths: Vec<Expr>,
+        // lengths: Vec<Expr>,
+        length: Expr,
         init_list: Option<InitializerList>,
     },
 }
 
-pub type InitializerList = Vec<InitializerListItem>;
+pub type InitializerList = Vec<Expr>;
 
-#[derive(Debug)]
-pub enum InitializerListItem {
-    InitializerList(Box<InitializerList>),
-    Expr(Expr),
-}
+// #[derive(Debug)]
+// pub enum InitializerListItem {
+//     InitializerList(Box<InitializerList>),
+//     Expr(Expr),
+// }
 
 #[derive(Debug)]
 pub enum Statement {
@@ -133,5 +136,5 @@ pub enum Expr {
     Num(i32),
     Identifier(String),
     FunctionCall(String, Vec<Expr>),
-    ArrayElement(String, Vec<Expr>),
+    ArrayElement(String, Box<Expr>),
 }

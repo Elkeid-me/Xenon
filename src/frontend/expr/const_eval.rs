@@ -1,5 +1,5 @@
 use super::{
-    super::ast::{ArithmeticOp::*, Expr, InfixOp::*, InitializerListItem, UnaryOp},
+    super::ast::{ArithmeticOp::*, Expr, InfixOp::*, UnaryOp},
     super::checker::*,
     types::Type,
 };
@@ -10,7 +10,7 @@ pub fn const_eval(expr: &mut Expr, context: &SymbolTable) -> Result<(Type, bool,
     match expr {
         Expr::InfixExpr(lhs, op, rhs) => {
             let (lhs_type, lhs_left_value, lhs_value) = const_eval(lhs, context)?;
-            let (rhs_type, rhs_left_value, rhs_value) = const_eval(rhs, context)?;
+            let (rhs_type, _, rhs_value) = const_eval(rhs, context)?;
             match op {
                 Assign(op) => {
                     if !lhs_left_value {
@@ -84,14 +84,17 @@ pub fn const_eval(expr: &mut Expr, context: &SymbolTable) -> Result<(Type, bool,
                 *expr = Expr::Num(*i);
                 Ok((Type::Int, false, Some(*i)))
             }
-            Some(SymbolTableItem::Variable(_)) => Ok((Type::Int, true, None)),
+            Some(SymbolTableItem::Variable) => Ok((Type::Int, true, None)),
+            Some(SymbolTableItem::Array(length)) | Some(SymbolTableItem::ConstArray(length, _)) => {
+                Ok((Type::Array(*length), false, None))
+            }
             _ => Err(()),
         },
         Expr::FunctionCall(identifier, arg_list) => match context.search(identifier) {
             Some(SymbolTableItem::Function(type_, para_types)) => {
                 for (expr, expect_type) in arg_list.iter_mut().zip(para_types) {
                     let (expr_type, _, _) = const_eval(expr, context)?;
-                    if !expr_type.can_convert_to(type_) {
+                    if todo!() {
                         return Err(());
                     }
                 }
@@ -99,7 +102,30 @@ pub fn const_eval(expr: &mut Expr, context: &SymbolTable) -> Result<(Type, bool,
             }
             _ => Err(()),
         },
-        Expr::ArrayElement(identifier, length) => todo!(),
+        Expr::ArrayElement(identifier, length) => {
+            let (type_, _, value) = const_eval(length, context)?;
+            if !matches!(type_, Type::Int) {
+                return Err(());
+            }
+            match context.search(identifier) {
+                Some(SymbolTableItem::ConstArray(length, init_list)) => {
+                    if let Some(subscript) = value {
+                        let subscript = subscript as usize;
+                        if (subscript) < init_list.len() {
+                            Ok((Type::Int, false, Some(init_list[subscript])))
+                        } else if (subscript) < *length {
+                            Ok((Type::Int, false, Some(0)))
+                        } else {
+                            Err(())
+                        }
+                    } else {
+                        Ok((Type::Int, false, None))
+                    }
+                }
+                Some(SymbolTableItem::Pointer) | Some(SymbolTableItem::Array(_)) => Ok((Type::Int, true, None)),
+                _ => todo!(),
+            }
+        }
     }
 }
 
