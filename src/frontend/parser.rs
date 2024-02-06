@@ -43,6 +43,7 @@ impl AstBuilder {
                 .op(Op::infix(Rule::bit_left_shift, Left) | Op::infix(Rule::bit_right_shift, Left))
                 .op(Op::infix(Rule::add, Left) | Op::infix(Rule::subtract, Left))
                 .op(Op::infix(Rule::multiply, Left) | Op::infix(Rule::divide, Left) | Op::infix(Rule::modulus, Left))
+                .op(Op::infix(Rule::custom_operator, Left))
                 .op(Op::prefix(Rule::prefix_self_decrease)
                     | Op::prefix(Rule::prefix_self_increase)
                     | Op::prefix(Rule::logical_not)
@@ -81,6 +82,7 @@ impl AstBuilder {
                 }
             })
             .map_infix(|lhs, op, rhs| match op.as_rule() {
+                Rule::custom_operator => FunctionCall(op.into_inner().as_str().to_string(), vec![lhs, rhs]),
                 Rule::multiply => InfixExpr(Box::new(lhs), Arith(Multiply), Box::new(rhs)),
                 Rule::divide => InfixExpr(Box::new(lhs), Arith(Divide), Box::new(rhs)),
                 Rule::modulus => InfixExpr(Box::new(lhs), Arith(Modulus), Box::new(rhs)),

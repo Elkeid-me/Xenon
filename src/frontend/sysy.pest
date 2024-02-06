@@ -51,7 +51,8 @@ address_of           =  { "&" }
 indirection          =  { "*" }
 bit_not              =  { "~" }
 
-infix_operator = _{ three_char_operator | two_char_operator | single_char_operator }
+infix_operator  = _{ custom_operator | three_char_operator | two_char_operator | single_char_operator }
+custom_operator = ${ "`" ~ identifier ~ "`" }
 
 single_char_operator = _{ multiply | divide | modulus | add | subtract | bit_xor | bit_and | bit_or | greater | less | assignment }
 two_char_operator    = _{ logical_and | logical_or | bit_left_shift | bit_right_shift | equal | not_equal | greater_or_equal
