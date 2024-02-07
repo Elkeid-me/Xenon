@@ -8,8 +8,8 @@ global_item = _{ all_definitions | function_definition }
 function_definition           =  { signature ~ block }
 signature                     =  { function_return_type ~ identifier ~ "(" ~ parameter_list ~ ")" }
 parameter_list                =  { parameter_definition ~ ("," ~ parameter_definition)* | "void" | "" }
-parameter_definition          = _{ array_parameter_definition | variable_parameter_definition }
-array_parameter_definition    =  { int ~ identifier ~ "[" ~ "]" ~ array_lengths? }
+parameter_definition          = _{ pointer_parameter_definition | variable_parameter_definition }
+pointer_parameter_definition  =  { int ~ identifier ~ "[" ~ "]" ~ array_lengths? }
 variable_parameter_definition =  { int ~ identifier }
 int                           = @{ "int" ~ WHITE_SPACE+ }
 void                          = @{ "void" ~ WHITE_SPACE+ }
@@ -30,9 +30,8 @@ array_definition    =  { identifier ~ array_lengths ~ ("=" ~ initializer_list)? 
 
 array_lengths = _{ array_subscript }
 
-initializer_list         =  { "{" ~ initializer_list_content? ~ "}" }
-// initializer_list_content = _{ initializer_list ~ ("," ~ initializer_list)* | expression ~ ("," ~ expression)* }
-initializer_list_content = _{ expression ~ ("," ~ expression)* }
+initializer_list      =  { "{" ~ (initializer_list_item ~ ("," ~ initializer_list_item)*)? ~ "}" }
+initializer_list_item = _{ initializer_list | expression}
 
 primary = _{ integer_hex | integer_bin | integer_oct | integer_dec | function_call | array_element | identifier | "(" ~ expression ~ ")" }
 atom    = _{ prefix_operator* ~ primary ~ postfix_operator* }
@@ -94,8 +93,8 @@ bit_xor_assignment         = { "^=" }
 bit_left_shift_assignment  = { ">>=" }
 bit_right_shift_assignment = { "<<=" }
 
-array_element   =  { identifier ~ array_subscript }
-array_subscript = _{ "[" ~ expression ~ "]" }
+array_element   = { identifier ~ array_subscript }
+array_subscript = { ("[" ~ expression ~ "]")+ }
 
 expression    =  { atom ~ (infix_operator ~ atom)* }
 function_call =  { identifier ~ "(" ~ argument_list? ~ ")" }
