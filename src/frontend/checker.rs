@@ -1,9 +1,6 @@
 use super::{
     ast::*,
-    expr::{
-        const_eval::{check_expr, const_eval, expr_type},
-        types::Type::{self, *},
-    },
+    expr::types::Type::{self, *},
 };
 use std::{cmp::max, collections::HashMap, iter::zip};
 pub enum SymbolTableItem {
@@ -85,10 +82,9 @@ impl<'a> Checker<'a> {
 
     fn process_definition(&mut self, definition: &'a mut Definition) -> Result<(), String> {
         match definition {
-            Definition::ConstVariableDefinition(identifier, init) => match const_eval(init, &self.table)? {
-                Some(i) => self.table.insert_definition(identifier, ConstVariable(i)),
-                None => Err(format!("{:?} 不是常量表达式", init)),
-            },
+            Definition::ConstVariableDefinition(identifier, init) => self
+                .table
+                .insert_definition(identifier, ConstVariable(init.const_eval(&self.table)?)),
             Definition::ConstArrayDefinition {
                 identifier,
                 lengths,
@@ -96,7 +92,7 @@ impl<'a> Checker<'a> {
             } => todo!(),
             Definition::VariableDefinition(identifier, init) => {
                 if let Some(expr) = init {
-                    if !matches!(expr_type(expr, &self.table)?, Int) {
+                    if !matches!(expr.expr_type(&self.table)?, Int) {
                         return Err(format!("{:?} 不是整型表达式", expr));
                     }
                 }
@@ -117,19 +113,19 @@ impl<'a> Checker<'a> {
                 BlockItem::Definition(definition) => self.process_definition(definition)?,
                 BlockItem::Block(block) => self.process_block(block, return_void, in_while)?,
                 BlockItem::Statement(statement) => match statement.as_mut() {
-                    Statement::Expr(expr) => check_expr(expr, &self.table)?,
+                    Statement::Expr(expr) => expr.check_expr(&self.table)?,
                     Statement::If {
                         condition,
                         then_block,
                         else_block,
-                    } => match expr_type(condition, &self.table)? {
+                    } => match condition.expr_type(&self.table)? {
                         Void => return Err(format!("{:?} 不能作为 if 的条件", condition)),
                         _ => {
                             self.process_block(then_block, return_void, in_while)?;
                             self.process_block(else_block, return_void, in_while)?;
                         }
                     },
-                    Statement::While { condition, block } => match expr_type(condition, &self.table)? {
+                    Statement::While { condition, block } => match condition.expr_type(&self.table)? {
                         Void => return Err(format!("{:?} 不能作为 if 的条件", condition)),
                         _ => self.process_block(block, return_void, in_while)?,
                     },
@@ -138,7 +134,7 @@ impl<'a> Checker<'a> {
                         (None, false) => return Err("int 函数中的 return 语句未返回表达式".to_string()),
                         (Some(expr), true) => return Err(format!("在 void 函数中返回了表达式 {:?}", expr)),
                         (Some(expr), false) => {
-                            if !matches!(expr_type(expr, &self.table)?, Int) {
+                            if !matches!(expr.expr_type(&self.table)?, Int) {
                                 return Err(format!("return 语句返回的 {:?} 类型与函数定义不匹配", expr));
                             }
                         }
@@ -168,9 +164,7 @@ impl<'a> Checker<'a> {
                     for p in parameter_list.iter_mut() {
                         if let Parameter::Pointer(_, exprs) = p {
                             for expr in exprs.iter_mut() {
-                                if let None = const_eval(expr, &self.table)? {
-                                    return Err(format!("{:?} 不是常量表达式", expr));
-                                }
+                                expr.const_eval(&self.table)?;
                             }
                         }
                     }
