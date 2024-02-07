@@ -4,13 +4,15 @@ use super::{
     types::Type::{self, Array, Int},
 };
 
+use std::iter::zip;
+
 // 类型, 是否合法, 是否是左值, 编译期计算值 (如果有)
 // 这里, "左值" 的概念即 C 中的可修改左值 (SysY 中的 const 必须为编译期常量表达式)
-pub fn const_eval(expr: &mut Expr, context: &SymbolTable) -> Result<(Type, bool, Option<i32>), String> {
+fn const_eval_impl(expr: &mut Expr, context: &SymbolTable) -> Result<(Type, bool, Option<i32>), String> {
     match expr {
         Expr::InfixExpr(lhs, op, rhs) => {
-            let (lhs_type, lhs_left_value, lhs_value) = const_eval(lhs, context)?;
-            let (rhs_type, _, rhs_value) = const_eval(rhs, context)?;
+            let (lhs_type, lhs_left_value, lhs_value) = const_eval_impl(lhs, context)?;
+            let (rhs_type, _, rhs_value) = const_eval_impl(rhs, context)?;
             match op {
                 Assign(_) => {
                     if !lhs_left_value || !lhs_type.can_convert_to(&rhs_type) {
@@ -51,7 +53,7 @@ pub fn const_eval(expr: &mut Expr, context: &SymbolTable) -> Result<(Type, bool,
             }
         }
         Expr::UnaryExpr(op, e) => {
-            let (exp_type, _, exp_value) = const_eval(e, context)?;
+            let (exp_type, _, exp_value) = const_eval_impl(e, context)?;
             match op {
                 ArithUnary(op) => {
                     if let Some(i) = exp_value {
@@ -85,7 +87,9 @@ pub fn const_eval(expr: &mut Expr, context: &SymbolTable) -> Result<(Type, bool,
                 Ok((Int, false, Some(*i)))
             }
             Some(SymbolTableItem::Variable) => Ok((Int, true, None)),
-            Some(SymbolTableItem::Array(length)) | Some(SymbolTableItem::ConstArray(length, _)) => Ok((Array(*length), false, None)),
+            Some(SymbolTableItem::Array(length)) | Some(SymbolTableItem::ConstArray(length, _)) => {
+                Ok((Array(length.clone()), false, None))
+            }
             _ => Err(format!("{} 不存在，或不是整型、数组或指针变量", identifier)),
         },
         Expr::FunctionCall(identifier, arg_list) => match context.search(identifier) {
@@ -93,8 +97,8 @@ pub fn const_eval(expr: &mut Expr, context: &SymbolTable) -> Result<(Type, bool,
                 if arg_list.len() != para_types.len() {
                     return Err("实参列表长度与函数定义不匹配".to_string());
                 }
-                for (expr, expect_type) in arg_list.iter_mut().zip(para_types) {
-                    let (expr_type, _, _) = const_eval(expr, context)?;
+                for (expr, expect_type) in zip(arg_list.iter_mut(), para_types.iter()) {
+                    let (expr_type, _, _) = const_eval_impl(expr, context)?;
                     if !expr_type.can_convert_to(&expect_type) {
                         return Err(format!("{:?} 无法转换到类型 {:?}", expr, expect_type));
                     }
@@ -104,40 +108,21 @@ pub fn const_eval(expr: &mut Expr, context: &SymbolTable) -> Result<(Type, bool,
             _ => Err(format!("{} 不存在，或不是函数", identifier)),
         },
         Expr::ArrayElement(identifier, length) => {
-            let (type_, _, value) = const_eval(length, context)?;
-            if !matches!(type_, Int) {
-                return Err(format!("表达式 {:?} 不是整型表达式", length));
-            }
-            match context.search(identifier) {
-                Some(SymbolTableItem::ConstArray(length, init_list)) => {
-                    if let Some(subscript) = value {
-                        let subscript = subscript as usize;
-                        if (subscript) < init_list.len() {
-                            *expr = Expr::Num(init_list[subscript]);
-                            Ok((Int, false, Some(init_list[subscript])))
-                        } else if (subscript) < *length {
-                            *expr = Expr::Num(0);
-                            Ok((Int, false, Some(0)))
-                        } else {
-                            Err(format!("{} 超出索引范围 {}", subscript, *length - 1))
-                        }
-                    } else {
-                        Ok((Int, false, None))
-                    }
-                }
-                Some(SymbolTableItem::Pointer) | Some(SymbolTableItem::Array(_)) => Ok((Int, true, None)),
-                _ => Err(format!("{} 不存在，或不是数组/指针变量", identifier)),
-            }
+            todo!()
         }
     }
 }
 
 pub fn check_expr(expr: &mut Expr, context: &SymbolTable) -> Result<(), String> {
-    const_eval(expr, context)?;
+    const_eval_impl(expr, context)?;
     Ok(())
 }
 
 pub fn expr_type(expr: &mut Expr, context: &SymbolTable) -> Result<Type, String> {
-    let (type_, _, _) = const_eval(expr, context)?;
+    let (type_, _, _) = const_eval_impl(expr, context)?;
     Ok(type_)
+}
+
+pub fn const_eval(expr: &mut Expr, context: &SymbolTable) -> Result<Option<i32>, String> {
+    Ok(const_eval_impl(expr, context)?.2)
 }

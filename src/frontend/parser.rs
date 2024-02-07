@@ -66,15 +66,17 @@ impl AstBuilder {
                 Rule::identifier => Identifier(pair.as_str().to_string()),
                 Rule::function_call => {
                     let mut iter = pair.into_inner();
-                    let identifier = iter.next().unwrap().as_str().to_string();
-                    let exprs = iter.map(|p| self.parse_expr(p)).collect();
-                    FunctionCall(identifier, exprs)
+                    FunctionCall(
+                        iter.next().unwrap().as_str().to_string(),
+                        iter.map(|p| self.parse_expr(p)).collect(),
+                    )
                 }
                 Rule::array_element => {
                     let mut iter = pair.into_inner();
-                    let identifier = iter.next().unwrap().as_str().to_string();
-                    let expr = self.parse_expr(iter.next().unwrap());
-                    ArrayElement(identifier, Box::new(expr))
+                    ArrayElement(
+                        iter.next().unwrap().as_str().to_string(),
+                        iter.map(|p| self.parse_expr(p)).collect(),
+                    )
                 }
                 rule => {
                     dbg!(rule);
@@ -144,19 +146,19 @@ impl AstBuilder {
             .parse(pair.into_inner())
     }
 
-    // fn parse_init_list_item(&self, pair: Pair<Rule>) -> InitializerListItem {
-    //     match pair.as_rule() {
-    //         Rule::initializer_list => InitializerListItem::InitializerList(Box::new(self.parse_init_list(pair))),
-    //         Rule::expression => InitializerListItem::Expr(self.parse_expr(pair)),
-    //         rule => {
-    //             dbg!(rule);
-    //             unreachable!()
-    //         }
-    //     }
-    // }
+    fn parse_init_list_item(&self, pair: Pair<Rule>) -> InitializerListItem {
+        match pair.as_rule() {
+            Rule::initializer_list => InitializerListItem::InitializerList(Box::new(self.parse_init_list(pair))),
+            Rule::expression => InitializerListItem::Expr(self.parse_expr(pair)),
+            rule => {
+                dbg!(rule);
+                unreachable!()
+            }
+        }
+    }
 
     fn parse_init_list(&self, pair: Pair<Rule>) -> InitializerList {
-        pair.into_inner().map(|pair| self.parse_expr(pair)).collect()
+        pair.into_inner().map(|pair| self.parse_init_list_item(pair)).collect()
     }
 
     fn parse_definition(&self, pair: Pair<Rule>) -> Definition {
@@ -182,8 +184,7 @@ impl AstBuilder {
                 let mut iter = pair.into_inner();
                 Definition::ConstArrayDefinition {
                     identifier: iter.next().unwrap().as_str().to_string(),
-                    // lengths: iter.next().unwrap().into_inner().map(|expr| self.parse_expr(expr)).collect(),
-                    length: self.parse_expr(iter.next().unwrap()),
+                    lengths: iter.next().unwrap().into_inner().map(|expr| self.parse_expr(expr)).collect(),
                     init_list: self.parse_init_list(iter.next().unwrap()),
                 }
             }
@@ -191,8 +192,7 @@ impl AstBuilder {
                 let mut iter = pair.into_inner();
                 Definition::ArrayDefinition {
                     identifier: iter.next().unwrap().as_str().to_string(),
-                    // lengths: iter.next().unwrap().into_inner().map(|expr| self.parse_expr(expr)).collect(),
-                    length: self.parse_expr(iter.next().unwrap()),
+                    lengths: iter.next().unwrap().into_inner().map(|expr| self.parse_expr(expr)).collect(),
                     init_list: match iter.next() {
                         Some(iter) => Some(self.parse_init_list(iter)),
                         None => None,
@@ -226,10 +226,10 @@ impl AstBuilder {
         let mut iter = pair.into_inner();
         Statement::If {
             condition: self.parse_expr(iter.next().unwrap()),
-            then_block: self.parse_if_while_helper(iter.next().unwrap()),
+            then_block: Box::new(self.parse_if_while_helper(iter.next().unwrap())),
             else_block: match iter.next() {
-                Some(pair) => self.parse_if_while_helper(pair),
-                None => Block::new(),
+                Some(pair) => Box::new(self.parse_if_while_helper(pair)),
+                None => Box::new(Block::new()),
             },
         }
     }
@@ -238,7 +238,7 @@ impl AstBuilder {
         let mut iter = pair.into_inner();
         Statement::While {
             condition: self.parse_expr(iter.next().unwrap()),
-            block: self.parse_if_while_helper(iter.next().unwrap()),
+            block: Box::new(self.parse_if_while_helper(iter.next().unwrap())),
         }
     }
 
@@ -298,8 +298,15 @@ impl AstBuilder {
                 Rule::variable_parameter_definition => {
                     Parameter::Int(pair.into_inner().skip(1).next().unwrap().as_str().to_string())
                 }
-                Rule::array_parameter_definition => {
-                    Parameter::Pointer(pair.into_inner().skip(1).next().unwrap().as_str().to_string())
+                Rule::pointer_parameter_definition => {
+                    let mut iter = pair.into_inner().skip(1);
+                    Parameter::Pointer(
+                        iter.next().unwrap().as_str().to_string(),
+                        match iter.next() {
+                            Some(exprs) => exprs.into_inner().map(|p| self.parse_expr(p)).collect(),
+                            None => Vec::new(),
+                        },
+                    )
                 }
                 rule => {
                     dbg!(rule);

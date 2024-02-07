@@ -5,14 +5,14 @@ use super::{
         types::Type::{self, *},
     },
 };
-use std::{collections::HashMap, vec};
+use std::{cmp::max, collections::HashMap, iter::zip};
 pub enum SymbolTableItem {
     ConstVariable(i32),
     Variable,
-    ConstArray(usize, Vec<i32>),
-    Array(usize),
+    ConstArray(Vec<usize>, Vec<i32>),
+    Array(Vec<usize>),
     Function(Type, Vec<Type>),
-    Pointer,
+    Pointer(Vec<usize>),
 }
 
 use SymbolTableItem::{Array, ConstArray, ConstVariable, Function, Variable};
@@ -69,47 +69,31 @@ impl<'a> Checker<'a> {
             table: vec![HashMap::from([
                 ("getint", Function(Int, Vec::new())),
                 ("getch", Function(Int, Vec::new())),
-                ("getarray", Function(Int, vec![Pointer])),
+                ("getarray", Function(Int, vec![Pointer(Vec::new())])),
                 ("putint", Function(Void, vec![Int])),
                 ("putch", Function(Void, vec![Int])),
-                ("putarray", Function(Int, vec![Int, Pointer])),
+                ("putarray", Function(Int, vec![Int, Pointer(Vec::new())])),
                 ("starttime", Function(Void, Vec::new())),
                 ("stoptime", Function(Void, Vec::new())),
             ])],
         }
     }
 
+    fn process_init_list<const IS_CONST_EVAL: bool>(&mut self, init_list: &mut InitializerList) -> Result<Vec<usize>, String> {
+        todo!()
+    }
+
     fn process_definition(&mut self, definition: &'a mut Definition) -> Result<(), String> {
         match definition {
-            Definition::ConstVariableDefinition(identifier, init) => match const_eval(init, &self.table) {
-                Ok((_, _, Some(i))) => self.table.insert_definition(identifier, ConstVariable(i)),
-                _ => Err(format!("{:?} 不是常量表达式", init)),
+            Definition::ConstVariableDefinition(identifier, init) => match const_eval(init, &self.table)? {
+                Some(i) => self.table.insert_definition(identifier, ConstVariable(i)),
+                None => Err(format!("{:?} 不是常量表达式", init)),
             },
             Definition::ConstArrayDefinition {
                 identifier,
-                length,
+                lengths,
                 init_list,
-            } => {
-                for expr in init_list.iter_mut() {
-                    if let None = const_eval(expr, &self.table)?.2 {
-                        return Err(format!("{:?} 不是常量表达式", expr));
-                    }
-                }
-                let init_list: Vec<i32> = init_list
-                    .iter()
-                    .map(|p| if let Expr::Num(i) = p { *i } else { unreachable!() })
-                    .collect();
-                if let Some(length) = const_eval(length, &self.table)?.2 {
-                    let length = length as usize;
-                    if (length) < init_list.len() {
-                        return Err(format!("数组长度 {} 小于初始化列表长度 {}", length, init_list.len()));
-                    }
-                    self.table
-                        .insert_definition(identifier, SymbolTableItem::ConstArray(length, init_list))
-                } else {
-                    Err(format!("{:?} 不是常量表达式", length))
-                }
-            }
+            } => todo!(),
             Definition::VariableDefinition(identifier, init) => {
                 if let Some(expr) = init {
                     if !matches!(expr_type(expr, &self.table)?, Int) {
@@ -120,33 +104,16 @@ impl<'a> Checker<'a> {
             }
             Definition::ArrayDefinition {
                 identifier,
-                length,
+                lengths,
                 init_list,
-            } => {
-                if let Some(length) = const_eval(length, &self.table)?.2 {
-                    let length = length as usize;
-                    if let Some(init_list) = init_list {
-                        for expr in init_list.iter_mut() {
-                            if !matches!(expr_type(expr, &self.table)?, Int) {
-                                return Err(format!("{:?} 不是整型表达式", expr));
-                            }
-                        }
-                        if length < init_list.len() {
-                            return Err(format!("数组长度 {} 小于初始化列表长度 {}", length, init_list.len()));
-                        }
-                    }
-                    self.table.insert_definition(identifier, Array(length))
-                } else {
-                    Err(format!("{:?} 不是常量表达式", length))
-                }
-            }
+            } => todo!(),
         }
     }
 
     fn process_block(&mut self, block: &'a mut Block, return_void: bool, in_while: bool) -> Result<(), String> {
         self.table.enter_scope();
-        for statement in block.iter_mut() {
-            match statement {
+        for block_item in block.iter_mut() {
+            match block_item {
                 BlockItem::Definition(definition) => self.process_definition(definition)?,
                 BlockItem::Block(block) => self.process_block(block, return_void, in_while)?,
                 BlockItem::Statement(statement) => match statement.as_mut() {
@@ -155,18 +122,21 @@ impl<'a> Checker<'a> {
                         condition,
                         then_block,
                         else_block,
-                    } => {
-                        check_expr(condition, &self.table)?;
-                        self.process_block(then_block, return_void, in_while)?;
-                        self.process_block(else_block, return_void, in_while)?;
-                    }
-                    Statement::While { condition, block } => {
-                        check_expr(condition, &self.table)?;
-                        self.process_block(block, return_void, true)?;
-                    }
+                    } => match expr_type(condition, &self.table)? {
+                        Void => return Err(format!("{:?} 不能作为 if 的条件", condition)),
+                        _ => {
+                            self.process_block(then_block, return_void, in_while)?;
+                            self.process_block(else_block, return_void, in_while)?;
+                        }
+                    },
+                    Statement::While { condition, block } => match expr_type(condition, &self.table)? {
+                        Void => return Err(format!("{:?} 不能作为 if 的条件", condition)),
+                        _ => self.process_block(block, return_void, in_while)?,
+                    },
                     Statement::Return(expr) => match (expr, return_void) {
                         (None, true) => (),
-                        (Some(_), true) | (None, false) => return Err("return 语句返回表达式的类型与函数定义不匹配".to_string()),
+                        (None, false) => return Err("int 函数中的 return 语句未返回表达式".to_string()),
+                        (Some(expr), true) => return Err(format!("在 void 函数中返回了表达式 {:?}", expr)),
                         (Some(expr), false) => {
                             if !matches!(expr_type(expr, &self.table)?, Int) {
                                 return Err(format!("return 语句返回的 {:?} 类型与函数定义不匹配", expr));
@@ -195,41 +165,45 @@ impl<'a> Checker<'a> {
                     parameter_list,
                     block,
                 } => {
-                    // for p in parameter_list.iter_mut() {
-                    //     if let Parameter::Pointer(_, exprs) = p {
-                    //         for expr in exprs.iter_mut() {
-                    //             if let None = const_eval(expr, &self.table)?.2 {
-                    //                 return Err(());
-                    //             }
-                    //         }
-                    //     }
-                    // }
-                    // let parameter_type = parameter_list
-                    //     .iter()
-                    //     .map(|p| match p {
-                    //         Parameter::Int(_) => Int,
-                    //         Parameter::Pointer(_, lengths) => Type::Pointer(Box::new(Int)),
-                    //     })
-                    //     .collect();
+                    for p in parameter_list.iter_mut() {
+                        if let Parameter::Pointer(_, exprs) = p {
+                            for expr in exprs.iter_mut() {
+                                if let None = const_eval(expr, &self.table)? {
+                                    return Err(format!("{:?} 不是常量表达式", expr));
+                                }
+                            }
+                        }
+                    }
                     let parameter_type = parameter_list
                         .iter()
                         .map(|p| match p {
                             Parameter::Int(_) => Int,
-                            Parameter::Pointer(_) => Pointer,
+                            Parameter::Pointer(_, lengths) => Type::Pointer(
+                                lengths
+                                    .iter()
+                                    .map(|p| if let Expr::Num(i) = p { *i as usize } else { unreachable!() })
+                                    .collect(),
+                            ),
                         })
                         .collect();
                     let return_type = if *return_void { Void } else { Int };
                     self.table
-                        .insert_definition(identifier, SymbolTableItem::Function(return_type, parameter_type))?;
-                    // 符号表中加入参数定义
+                        .insert_definition(identifier, Function(return_type, parameter_type))?;
                     self.table.enter_scope();
                     for p in parameter_list.iter() {
                         match p {
-                            Parameter::Int(identifier) => self.table.insert_definition(identifier, SymbolTableItem::Variable)?,
-                            Parameter::Pointer(identifier) => self.table.insert_definition(identifier, SymbolTableItem::Pointer)?,
+                            Parameter::Int(identifier) => self.table.insert_definition(identifier, Variable)?,
+                            Parameter::Pointer(identifier, lengths) => self.table.insert_definition(
+                                identifier,
+                                SymbolTableItem::Pointer(
+                                    lengths
+                                        .iter()
+                                        .map(|p| if let Expr::Num(i) = p { *i as usize } else { unreachable!() })
+                                        .collect(),
+                                ),
+                            )?,
                         }
                     }
-                    // 解析块
                     self.process_block(block, *return_void, false)?;
                     self.table.exit_scope();
                 }
