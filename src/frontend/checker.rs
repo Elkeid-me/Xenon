@@ -2,25 +2,25 @@ use super::{
     ast::*,
     expr::types::Type::{self, *},
 };
-use std::{cmp::max, collections::HashMap, iter::zip};
-pub enum SymbolTableItem {
+use std::{collections::HashMap, mem::take};
+pub enum SymbolTableItem<'a> {
     ConstVariable(i32),
     Variable,
-    ConstArray(Vec<usize>, Vec<i32>),
-    Array(Vec<usize>),
+    ConstArray(&'a Vec<usize>, Vec<i32>),
+    Array(&'a Vec<usize>),
     Function(Type, Vec<Type>),
-    Pointer(Vec<usize>),
+    Pointer(&'a Vec<usize>),
 }
 
 use SymbolTableItem::{Array, ConstArray, ConstVariable, Function, Variable};
 
-pub type SymbolTable<'a> = Vec<HashMap<&'a str, SymbolTableItem>>;
+pub type SymbolTable<'a> = Vec<HashMap<&'a str, SymbolTableItem<'a>>>;
 
 pub trait Scope<'a> {
     fn new() -> Self;
     fn search(&self, identifier: &str) -> Option<&SymbolTableItem>;
 
-    fn insert_definition(&mut self, identifier: &'a str, symbol: SymbolTableItem) -> Result<(), String>;
+    fn insert_definition(&mut self, identifier: &'a str, symbol: SymbolTableItem<'a>) -> Result<(), String>;
 
     fn enter_scope(&mut self);
     fn exit_scope(&mut self);
@@ -40,7 +40,7 @@ impl<'a> Scope<'a> for SymbolTable<'a> {
         return None;
     }
 
-    fn insert_definition(&mut self, identifier: &'a str, symbol: SymbolTableItem) -> Result<(), String> {
+    fn insert_definition(&mut self, identifier: &'a str, symbol: SymbolTableItem<'a>) -> Result<(), String> {
         match self.last_mut().unwrap().insert(identifier, symbol) {
             Some(_) => Err(format!("标识符 {} 在当前作用域中已存在", identifier)),
             None => Ok(()),
@@ -85,7 +85,7 @@ impl<'a> Checker<'a> {
             Definition::ConstVariableDefinition(identifier, init) => self
                 .table
                 .insert_definition(identifier, ConstVariable(init.const_eval(&self.table)?)),
-            Definition::ConstArrayDefinition {
+            Definition::ConstArrayDefinitionTmp {
                 identifier,
                 lengths,
                 init_list,
@@ -98,7 +98,7 @@ impl<'a> Checker<'a> {
                 }
                 self.table.insert_definition(identifier, Variable)
             }
-            Definition::ArrayDefinition {
+            Definition::ArrayDefinitionTmp {
                 identifier,
                 lengths,
                 init_list,
@@ -162,22 +162,25 @@ impl<'a> Checker<'a> {
                     block,
                 } => {
                     for p in parameter_list.iter_mut() {
-                        if let Parameter::Pointer(_, exprs) = p {
+                        if let Parameter::PointerTmp(identifier, exprs) = p {
                             for expr in exprs.iter_mut() {
                                 expr.const_eval(&self.table)?;
                             }
-                        }
-                    }
-                    let parameter_type = parameter_list
-                        .iter()
-                        .map(|p| match p {
-                            Parameter::Int(_) => Int,
-                            Parameter::Pointer(_, lengths) => Type::Pointer(
-                                lengths
+                            *p = Parameter::Pointer(
+                                take(identifier),
+                                exprs
                                     .iter()
                                     .map(|p| if let Expr::Num(i) = p { *i as usize } else { unreachable!() })
                                     .collect(),
-                            ),
+                            )
+                        }
+                    }
+                    let parameter_type = parameter_list
+                        .iter_mut()
+                        .map(|p| match p {
+                            Parameter::Int(_) => Int,
+                            Parameter::Pointer(_, lengths) => Type::Pointer(lengths.clone()),
+                            Parameter::PointerTmp(_, _) => unreachable!(),
                         })
                         .collect();
                     let return_type = if *return_void { Void } else { Int };
@@ -187,15 +190,10 @@ impl<'a> Checker<'a> {
                     for p in parameter_list.iter() {
                         match p {
                             Parameter::Int(identifier) => self.table.insert_definition(identifier, Variable)?,
-                            Parameter::Pointer(identifier, lengths) => self.table.insert_definition(
-                                identifier,
-                                SymbolTableItem::Pointer(
-                                    lengths
-                                        .iter()
-                                        .map(|p| if let Expr::Num(i) = p { *i as usize } else { unreachable!() })
-                                        .collect(),
-                                ),
-                            )?,
+                            Parameter::Pointer(identifier, lengths) => {
+                                self.table.insert_definition(identifier, SymbolTableItem::Pointer(lengths))?
+                            }
+                            Parameter::PointerTmp(_, _) => unreachable!(),
                         }
                     }
                     self.process_block(block, *return_void, false)?;

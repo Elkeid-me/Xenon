@@ -182,7 +182,7 @@ impl AstBuilder {
             }
             Rule::const_array_definition => {
                 let mut iter = pair.into_inner();
-                Definition::ConstArrayDefinition {
+                Definition::ConstArrayDefinitionTmp {
                     identifier: iter.next().unwrap().as_str().to_string(),
                     lengths: iter.next().unwrap().into_inner().map(|expr| self.parse_expr(expr)).collect(),
                     init_list: self.parse_init_list(iter.next().unwrap()),
@@ -190,7 +190,7 @@ impl AstBuilder {
             }
             Rule::array_definition => {
                 let mut iter = pair.into_inner();
-                Definition::ArrayDefinition {
+                Definition::ArrayDefinitionTmp {
                     identifier: iter.next().unwrap().as_str().to_string(),
                     lengths: iter.next().unwrap().into_inner().map(|expr| self.parse_expr(expr)).collect(),
                     init_list: match iter.next() {
@@ -300,7 +300,7 @@ impl AstBuilder {
                 }
                 Rule::pointer_parameter_definition => {
                     let mut iter = pair.into_inner().skip(1);
-                    Parameter::Pointer(
+                    Parameter::PointerTmp(
                         iter.next().unwrap().as_str().to_string(),
                         match iter.next() {
                             Some(exprs) => exprs.into_inner().map(|p| self.parse_expr(p)).collect(),

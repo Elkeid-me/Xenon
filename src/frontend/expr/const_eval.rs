@@ -88,8 +88,8 @@ impl Expr {
                     Ok((Int, false, Some(*i)))
                 }
                 Some(SymbolTableItem::Variable) => Ok((Int, true, None)),
-                Some(SymbolTableItem::Array(length)) | Some(SymbolTableItem::ConstArray(length, _)) => {
-                    Ok((Array(length.clone()), false, None))
+                Some(SymbolTableItem::Array(lengths)) | Some(SymbolTableItem::ConstArray(lengths, _)) => {
+                    Ok((Array((*lengths).clone()), false, None))
                 }
                 _ => Err(format!("{} 不存在，或不是整型、数组或指针变量", identifier)),
             },

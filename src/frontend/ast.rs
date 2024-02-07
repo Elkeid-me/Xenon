@@ -14,19 +14,20 @@ pub enum GlobalItem {
 #[derive(Debug)]
 pub enum Parameter {
     Int(String),
-    Pointer(String, Vec<Expr>),
+    PointerTmp(String, Vec<Expr>),
+    Pointer(String, Vec<usize>),
 }
 
 #[derive(Debug)]
 pub enum Definition {
     ConstVariableDefinition(String, Expr),
-    ConstArrayDefinition {
+    ConstArrayDefinitionTmp {
         identifier: String,
         lengths: Vec<Expr>,
         init_list: InitializerList,
     },
     VariableDefinition(String, Option<Expr>),
-    ArrayDefinition {
+    ArrayDefinitionTmp {
         identifier: String,
         lengths: Vec<Expr>,
         init_list: Option<InitializerList>,
