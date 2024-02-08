@@ -8,8 +8,8 @@ use std::iter::zip;
 
 // 类型, 是否合法, 是否是左值, 编译期计算值 (如果有)
 // 这里, "左值" 的概念即 C 中的可修改左值 (SysY 中的 const 必须为编译期常量表达式)
-impl Expr {
-    fn const_eval_impl(&mut self, context: &SymbolTable) -> Result<(Type, bool, Option<i32>), String> {
+impl<'a> Expr {
+    fn const_eval_impl(&mut self, context: &'a SymbolTable) -> Result<(Type<'a>, bool, Option<i32>), String> {
         match self {
             Expr::InfixExpr(lhs, op, rhs) => {
                 let (lhs_type, lhs_left_value, lhs_value) = lhs.const_eval_impl(context)?;
@@ -17,7 +17,7 @@ impl Expr {
                 match op {
                     Assign(_) => {
                         if !lhs_left_value || !lhs_type.can_convert_to(&rhs_type) {
-                            return Err(format!("{0:?} 不是左值表达式，或 {1:?} 无法转换到 {0:?} 的类型", lhs, rhs,));
+                            return Err(format!("{0:?} 不是左值表达式，或 {1:?} 无法转换到 {0:?} 的类型", lhs, rhs));
                         }
                         Ok((lhs_type, true, None))
                     }
@@ -89,8 +89,9 @@ impl Expr {
                 }
                 Some(SymbolTableItem::Variable) => Ok((Int, true, None)),
                 Some(SymbolTableItem::Array(lengths)) | Some(SymbolTableItem::ConstArray(lengths, _)) => {
-                    Ok((Array((*lengths).clone()), false, None))
+                    Ok((Array(lengths), false, None))
                 }
+                Some(SymbolTableItem::Pointer(lengths)) => Ok((Type::Pointer(lengths), false, None)),
                 _ => Err(format!("{} 不存在，或不是整型、数组或指针变量", identifier)),
             },
             Expr::FunctionCall(identifier, arg_list) => match context.search(identifier) {
@@ -104,7 +105,7 @@ impl Expr {
                             return Err(format!("{:?} 无法转换到类型 {:?}", expr, expect_type));
                         }
                     }
-                    Ok((type_.clone(), false, None))
+                    Ok((*type_, false, None))
                 }
                 _ => Err(format!("{} 不存在，或不是函数", identifier)),
             },
@@ -119,7 +120,7 @@ impl Expr {
         Ok(())
     }
 
-    pub fn expr_type(&mut self, context: &SymbolTable) -> Result<Type, String> {
+    pub fn expr_type(&mut self, context: &'a SymbolTable) -> Result<Type<'a>, String> {
         let (type_, _, _) = self.const_eval_impl(context)?;
         Ok(type_)
     }

@@ -20,16 +20,27 @@ pub enum Parameter {
 
 #[derive(Debug)]
 pub enum Definition {
-    ConstVariableDefinition(String, Expr),
+    ConstVariableDefinitionTmp(String, Expr),
+    ConstVariableDefinition(String, i32),
     ConstArrayDefinitionTmp {
         identifier: String,
         lengths: Vec<Expr>,
         init_list: InitializerList,
     },
+    ConstArrayDefinition {
+        identifier: String,
+        lengths: Vec<usize>,
+        init_list: ConstInitializerList,
+    },
     VariableDefinition(String, Option<Expr>),
     ArrayDefinitionTmp {
         identifier: String,
         lengths: Vec<Expr>,
+        init_list: Option<InitializerList>,
+    },
+    ArrayDefinition {
+        identifier: String,
+        lengths: Vec<usize>,
         init_list: Option<InitializerList>,
     },
 }
@@ -40,6 +51,14 @@ pub type InitializerList = Vec<InitializerListItem>;
 pub enum InitializerListItem {
     InitializerList(Box<InitializerList>),
     Expr(Expr),
+}
+
+pub type ConstInitializerList = Vec<ConstInitializerListItem>;
+
+#[derive(Debug)]
+pub enum ConstInitializerListItem {
+    InitializerList(Box<ConstInitializerList>),
+    Num(i32),
 }
 
 #[derive(Debug)]

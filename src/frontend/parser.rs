@@ -165,7 +165,7 @@ impl AstBuilder {
         match pair.as_rule() {
             Rule::const_variable_definition => {
                 let mut iter = pair.into_inner();
-                Definition::ConstVariableDefinition(
+                Definition::ConstVariableDefinitionTmp(
                     iter.next().unwrap().as_str().to_string(),
                     self.parse_expr(iter.next().unwrap()),
                 )

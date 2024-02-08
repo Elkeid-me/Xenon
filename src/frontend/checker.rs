@@ -2,13 +2,13 @@ use super::{
     ast::*,
     expr::types::Type::{self, *},
 };
-use std::{collections::HashMap, mem::take};
+use std::{collections::HashMap, mem::take, vec};
 pub enum SymbolTableItem<'a> {
     ConstVariable(i32),
     Variable,
-    ConstArray(&'a Vec<usize>, Vec<i32>),
+    ConstArray(&'a Vec<usize>, &'a ConstInitializerList),
     Array(&'a Vec<usize>),
-    Function(Type, Vec<Type>),
+    Function(Type<'a>, Vec<Type<'a>>),
     Pointer(&'a Vec<usize>),
 }
 
@@ -28,7 +28,6 @@ use SymbolTableItem::{Array, ConstArray, ConstVariable, Function, Variable};
 pub type SymbolTable<'a> = Vec<HashMap<&'a str, SymbolTableItem<'a>>>;
 
 pub trait Scope<'a> {
-    fn new() -> Self;
     fn search(&self, identifier: &str) -> Option<&SymbolTableItem>;
 
     fn insert_definition(&mut self, identifier: &'a str, symbol: SymbolTableItem<'a>) -> Result<(), String>;
@@ -38,10 +37,6 @@ pub trait Scope<'a> {
 }
 
 impl<'a> Scope<'a> for SymbolTable<'a> {
-    fn new() -> Self {
-        vec![HashMap::new()]
-    }
-
     fn search(&self, identifier: &str) -> Option<&SymbolTableItem> {
         for map in self.iter().rev() {
             if let Some(info) = map.get(identifier) {
@@ -77,30 +72,56 @@ impl<'a> Checker<'a> {
             table: vec![HashMap::from([
                 ("getint", Function(Int, Vec::new())),
                 ("getch", Function(Int, Vec::new())),
-                ("getarray", Function(Int, vec![Pointer(Vec::new())])),
+                ("getarray", Function(Int, vec![Pointer(&[])])),
                 ("putint", Function(Void, vec![Int])),
                 ("putch", Function(Void, vec![Int])),
-                ("putarray", Function(Int, vec![Int, Pointer(Vec::new())])),
+                ("putarray", Function(Int, vec![Int, Pointer(&[])])),
                 ("starttime", Function(Void, Vec::new())),
                 ("stoptime", Function(Void, Vec::new())),
             ])],
         }
     }
 
-    fn process_init_list<const IS_CONST_EVAL: bool>(&mut self, init_list: &mut InitializerList) -> Result<Vec<usize>, String> {
+    fn process_init_list(&self, init_list: &mut InitializerList, lengths: &[usize]) -> Result<InitializerList, String> {
+        todo!()
+    }
+
+    fn process_const_init_list(&self, init_list: &mut InitializerList, lengths: &[usize]) -> Result<ConstInitializerList, String> {
+        let prod = lengths.iter().fold(1usize, |l, r| l * *r);
+        for ele in init_list.iter_mut() {
+            match ele {
+                InitializerListItem::InitializerList(_) => todo!(),
+                InitializerListItem::Expr(_) => todo!(),
+            }
+        }
         todo!()
     }
 
     fn process_definition(&mut self, definition: &'a mut Definition) -> Result<(), String> {
         match definition {
-            Definition::ConstVariableDefinition(identifier, init) => self
-                .table
-                .insert_definition(identifier, ConstVariable(init.const_eval(&self.table)?)),
+            Definition::ConstVariableDefinitionTmp(identifier, init) => {
+                *definition = Definition::ConstVariableDefinition(take(identifier), init.const_eval(&self.table)?);
+                let (identifier, init) = risk!(definition, Definition::ConstVariableDefinition(id, i) => (id, *i));
+                self.table.insert_definition(identifier, ConstVariable(init))
+            }
             Definition::ConstArrayDefinitionTmp {
                 identifier,
                 lengths,
                 init_list,
-            } => todo!(),
+            } => {
+                for expr in lengths.iter_mut() {
+                    expr.const_eval(&self.table)?;
+                }
+                let lengths: Vec<usize> = lengths.iter_mut().map(|p| risk!(p, Expr::Num(i) => *i as usize)).collect();
+                let init_list = self.process_const_init_list(init_list, &lengths)?;
+                *definition = Definition::ConstArrayDefinition {
+                    identifier: take(identifier),
+                    lengths,
+                    init_list,
+                };
+                let (identifier, lengths, init_list) = risk!(definition, Definition::ConstArrayDefinition { identifier, lengths, init_list } => (identifier, lengths, init_list));
+                self.table.insert_definition(identifier, ConstArray(lengths, init_list))
+            }
             Definition::VariableDefinition(identifier, init) => {
                 if let Some(expr) = init {
                     if !matches!(expr.expr_type(&self.table)?, Int) {
@@ -113,7 +134,23 @@ impl<'a> Checker<'a> {
                 identifier,
                 lengths,
                 init_list,
-            } => todo!(),
+            } => {
+                for expr in lengths.iter_mut() {
+                    expr.const_eval(&self.table)?;
+                }
+                let lengths: Vec<usize> = lengths.iter_mut().map(|p| risk!(p, Expr::Num(i) => *i as usize)).collect();
+                let init_list = match init_list {
+                    Some(init_list) => Some(self.process_init_list(init_list, &lengths)?),
+                    None => None,
+                };
+                *definition = Definition::ArrayDefinition {
+                    identifier: take(identifier),
+                    lengths,
+                    init_list,
+                };
+                todo!()
+            }
+            _ => unreachable!(),
         }
     }
 
@@ -179,18 +216,15 @@ impl<'a> Checker<'a> {
                             }
                             *p = Parameter::Pointer(
                                 take(identifier),
-                                exprs
-                                    .iter()
-                                    .map(|p| if let Expr::Num(i) = p { *i as usize } else { unreachable!() })
-                                    .collect(),
+                                exprs.iter().map(|p| risk!(p, Expr::Num(i) => *i as usize)).collect(),
                             )
                         }
                     }
                     let parameter_type = parameter_list
-                        .iter_mut()
+                        .iter()
                         .map(|p| match p {
                             Parameter::Int(_) => Int,
-                            Parameter::Pointer(_, lengths) => Type::Pointer(lengths.clone()),
+                            Parameter::Pointer(_, lengths) => Type::Pointer(lengths),
                             Parameter::PointerTmp(_, _) => unreachable!(),
                         })
                         .collect();
