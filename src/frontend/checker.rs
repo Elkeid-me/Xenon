@@ -12,6 +12,17 @@ pub enum SymbolTableItem<'a> {
     Pointer(&'a Vec<usize>),
 }
 
+/// 每个人承担自己的风险！
+#[macro_export]
+macro_rules! risk {
+    ($expression:expr, $pattern:pat => $extracted_expression:expr) => {
+        match $expression {
+            $pattern => $extracted_expression,
+            _ => unreachable!(),
+        }
+    };
+}
+
 use SymbolTableItem::{Array, ConstArray, ConstVariable, Function, Variable};
 
 pub type SymbolTable<'a> = Vec<HashMap<&'a str, SymbolTableItem<'a>>>;
