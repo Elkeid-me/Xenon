@@ -2,10 +2,10 @@ pub type TranslationUnit = Vec<Box<GlobalItem>>;
 
 #[derive(Debug)]
 pub enum GlobalItem {
-    Definition(Definition),
-    FunctionDefinition {
+    Def(Definition),
+    FuncDef {
         return_void: bool,
-        identifier: String,
+        id: String,
         parameter_list: Vec<Parameter>,
         block: Block,
     },
@@ -22,24 +22,24 @@ pub enum Parameter {
 pub enum Definition {
     ConstVariableDefTmp(String, Expr),
     ConstVariableDef(String, i32),
-    ConstArrayDefinitionTmp {
-        identifier: String,
+    ConstArrayDefTmp {
+        id: String,
         lengths: Vec<Expr>,
         init_list: InitList,
     },
     ConstArrayDef {
-        identifier: String,
+        id: String,
         lengths: Vec<usize>,
         init_list: ConstInitList,
     },
     VariableDef(String, Option<Expr>),
     ArrayDefTmp {
-        identifier: String,
+        id: String,
         lengths: Vec<Expr>,
         init_list: Option<InitList>,
     },
     ArrayDef {
-        identifier: String,
+        id: String,
         lengths: Vec<usize>,
         init_list: Option<InitList>,
     },
@@ -82,7 +82,7 @@ pub type Block = Vec<BlockItem>;
 
 #[derive(Debug)]
 pub enum BlockItem {
-    Definition(Box<Definition>),
+    Def(Box<Definition>),
     Block(Box<Block>),
     Statement(Box<Statement>),
 }

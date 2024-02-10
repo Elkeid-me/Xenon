@@ -78,10 +78,7 @@ impl AstBuilder {
                         iter.next().unwrap().into_inner().map(|p| self.parse_expr(p)).collect(),
                     )
                 }
-                rule => {
-                    dbg!(rule);
-                    unreachable!()
-                }
+                _ => unreachable!(),
             })
             .map_infix(|lhs, op, rhs| match op.as_rule() {
                 Rule::custom_operator => FunctionCall(op.into_inner().as_str().to_string(), vec![lhs, rhs]),
@@ -116,10 +113,7 @@ impl AstBuilder {
                 Rule::bit_xor_assignment => InfixExpr(Box::new(lhs), Assign(BitXorAssign), Box::new(rhs)),
                 Rule::bit_left_shift_assignment => InfixExpr(Box::new(lhs), Assign(BitLeftShiftAssign), Box::new(rhs)),
                 Rule::bit_right_shift_assignment => InfixExpr(Box::new(lhs), Assign(BitRightShiftAssign), Box::new(rhs)),
-                rule => {
-                    dbg!(rule);
-                    unreachable!()
-                }
+                _ => unreachable!(),
             })
             .map_prefix(|op, rhs| match op.as_rule() {
                 Rule::prefix_self_increase => UnaryExpr(Other(PrefixSelfIncrease), Box::new(rhs)),
@@ -130,18 +124,12 @@ impl AstBuilder {
                 Rule::address_of => UnaryExpr(Other(AddressOf), Box::new(rhs)),
                 Rule::bit_not => UnaryExpr(ArithUnary(BitNot), Box::new(rhs)),
                 Rule::indirection => UnaryExpr(Other(Indirection), Box::new(rhs)),
-                rule => {
-                    dbg!(rule);
-                    unreachable!()
-                }
+                _ => unreachable!(),
             })
             .map_postfix(|lhs, op| match op.as_rule() {
                 Rule::postfix_self_increase => UnaryExpr(Other(PostfixSelfIncrease), Box::new(lhs)),
                 Rule::postfix_self_decrease => UnaryExpr(Other(PostfixSelfDecrease), Box::new(lhs)),
-                rule => {
-                    dbg!(rule);
-                    unreachable!()
-                }
+                _ => unreachable!(),
             })
             .parse(pair.into_inner())
     }
@@ -150,10 +138,7 @@ impl AstBuilder {
         match pair.as_rule() {
             Rule::initializer_list => InitListItem::InitList(Box::new(self.parse_init_list(pair))),
             Rule::expression => InitListItem::Expr(self.parse_expr(pair)),
-            rule => {
-                dbg!(rule);
-                unreachable!()
-            }
+            _ => unreachable!(),
         }
     }
 
@@ -182,8 +167,8 @@ impl AstBuilder {
             }
             Rule::const_array_definition => {
                 let mut iter = pair.into_inner();
-                Definition::ConstArrayDefinitionTmp {
-                    identifier: iter.next().unwrap().as_str().to_string(),
+                Definition::ConstArrayDefTmp {
+                    id: iter.next().unwrap().as_str().to_string(),
                     lengths: iter.next().unwrap().into_inner().map(|expr| self.parse_expr(expr)).collect(),
                     init_list: self.parse_init_list(iter.next().unwrap()),
                 }
@@ -191,7 +176,7 @@ impl AstBuilder {
             Rule::array_definition => {
                 let mut iter = pair.into_inner();
                 Definition::ArrayDefTmp {
-                    identifier: iter.next().unwrap().as_str().to_string(),
+                    id: iter.next().unwrap().as_str().to_string(),
                     lengths: iter.next().unwrap().into_inner().map(|expr| self.parse_expr(expr)).collect(),
                     init_list: match iter.next() {
                         Some(iter) => Some(self.parse_init_list(iter)),
@@ -213,12 +198,9 @@ impl AstBuilder {
             Rule::definitions_in_if_or_while_non_block => pair
                 .into_inner()
                 .skip(1)
-                .map(|pair| BlockItem::Definition(Box::new(self.parse_definition(pair))))
+                .map(|pair| BlockItem::Def(Box::new(self.parse_definition(pair))))
                 .collect(),
-            rule => {
-                dbg!(rule);
-                unreachable!()
-            }
+            _ => unreachable!(),
         }
     }
 
@@ -254,10 +236,7 @@ impl AstBuilder {
             Rule::while_statement => self.parse_while(iter),
             Rule::break_statement => Statement::Break,
             Rule::continue_statement => Statement::Continue,
-            rule => {
-                dbg!(rule);
-                unreachable!()
-            }
+            _ => unreachable!(),
         }
     }
 
@@ -270,11 +249,8 @@ impl AstBuilder {
                 Rule::variable_definition
                 | Rule::array_definition
                 | Rule::const_variable_definition
-                | Rule::const_array_definition => BlockItem::Definition(Box::new(self.parse_definition(pair))),
-                rule => {
-                    dbg!(rule);
-                    unreachable!()
-                }
+                | Rule::const_array_definition => BlockItem::Def(Box::new(self.parse_definition(pair))),
+                _ => unreachable!(),
             })
             .collect()
     }
@@ -284,12 +260,9 @@ impl AstBuilder {
         let return_void = match iter.next().unwrap().as_rule() {
             Rule::int => false,
             Rule::void => true,
-            rule => {
-                dbg!(rule);
-                unreachable!()
-            }
+            _ => unreachable!(),
         };
-        let identifier = iter.next().unwrap().as_str().to_string();
+        let id = iter.next().unwrap().as_str().to_string();
         let parameter_list = iter
             .next()
             .unwrap()
@@ -308,21 +281,18 @@ impl AstBuilder {
                         },
                     )
                 }
-                rule => {
-                    dbg!(rule);
-                    unreachable!()
-                }
+                _ => unreachable!(),
             })
             .collect();
-        (return_void, identifier, parameter_list)
+        (return_void, id, parameter_list)
     }
 
     fn parse_function_definition(&self, pair: Pair<Rule>) -> GlobalItem {
         let mut iter = pair.into_inner();
         let signature = self.parse_signature(iter.next().unwrap());
-        GlobalItem::FunctionDefinition {
+        GlobalItem::FuncDef {
             return_void: signature.0,
-            identifier: signature.1,
+            id: signature.1,
             parameter_list: signature.2,
             block: self.parse_block(iter.next().unwrap()),
         }
@@ -331,13 +301,10 @@ impl AstBuilder {
     fn parse_global_item(&self, pair: Pair<Rule>) -> GlobalItem {
         match pair.as_rule() {
             Rule::variable_definition | Rule::array_definition | Rule::const_variable_definition | Rule::const_array_definition => {
-                GlobalItem::Definition(self.parse_definition(pair))
+                GlobalItem::Def(self.parse_definition(pair))
             }
             Rule::function_definition => self.parse_function_definition(pair),
-            rule => {
-                dbg!(rule);
-                unreachable!()
-            }
+            _ => unreachable!(),
         }
     }
 

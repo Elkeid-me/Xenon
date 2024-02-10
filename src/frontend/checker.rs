@@ -83,11 +83,7 @@ impl<'a> Checker<'a> {
     }
 
     fn process_init_list(&self, init_list: &mut InitList, lengths: &[usize]) -> Result<InitList, String> {
-        fn process_init_list_impl(
-            checker: &Checker,
-            init_list: &mut InitList,
-            len_prod: &[usize],
-        ) -> Result<(InitList, usize), String> {
+        fn __impl(checker: &Checker, init_list: &mut InitList, len_prod: &[usize]) -> Result<(InitList, usize), String> {
             if init_list.is_empty() {
                 return Ok((InitList::new(), *len_prod.last().unwrap()));
             }
@@ -107,7 +103,7 @@ impl<'a> Checker<'a> {
                                 break;
                             }
                         }
-                        let (l, s) = process_init_list_impl(checker, l, &len_prod[0..=z])?;
+                        let (l, s) = __impl(checker, l, &len_prod[0..=z])?;
                         let mut v_ref = &mut v;
                         for _ in z + 2..len_prod.len() {
                             if v_ref.is_empty() {
@@ -147,15 +143,11 @@ impl<'a> Checker<'a> {
                 Some(*l)
             })
             .collect();
-        Ok(process_init_list_impl(self, init_list, &len_prod)?.0)
+        Ok(__impl(self, init_list, &len_prod)?.0)
     }
 
     fn process_const_init_list(&self, init_list: &mut InitList, lengths: &[usize]) -> Result<ConstInitList, String> {
-        fn process_const_init_list_impl(
-            checker: &Checker,
-            init_list: &mut InitList,
-            len_prod: &[usize],
-        ) -> Result<(ConstInitList, usize), String> {
+        fn __impl(checker: &Checker, init_list: &mut InitList, len_prod: &[usize]) -> Result<(ConstInitList, usize), String> {
             if init_list.is_empty() {
                 return Ok((ConstInitList::new(), *len_prod.last().unwrap()));
             }
@@ -175,7 +167,7 @@ impl<'a> Checker<'a> {
                                 break;
                             }
                         }
-                        let (l, s) = process_const_init_list_impl(checker, l, &len_prod[0..=z])?;
+                        let (l, s) = __impl(checker, l, &len_prod[0..=z])?;
                         let mut v_ref = &mut v;
                         for _ in z + 2..len_prod.len() {
                             if v_ref.is_empty() {
@@ -212,7 +204,7 @@ impl<'a> Checker<'a> {
                 Some(*l)
             })
             .collect();
-        Ok(process_const_init_list_impl(self, init_list, &len_prod)?.0)
+        Ok(__impl(self, init_list, &len_prod)?.0)
     }
 
     fn process_definition(&mut self, def: &'a mut Definition) -> Result<(), String> {
@@ -222,11 +214,7 @@ impl<'a> Checker<'a> {
                 let (identifier, init) = risk!(def, ConstVariableDef(id, i) => (id, *i));
                 self.table.insert_definition(identifier, ConstVariable(init))
             }
-            ConstArrayDefinitionTmp {
-                identifier,
-                lengths,
-                init_list,
-            } => {
+            ConstArrayDefTmp { id, lengths, init_list } => {
                 for expr in lengths.iter_mut() {
                     if expr.const_eval(&self.table)? <= 0 {
                         return Err(format!("{:?} 的值小于等于 0", expr));
@@ -235,12 +223,12 @@ impl<'a> Checker<'a> {
                 let lengths: Vec<usize> = lengths.iter_mut().map(|p| risk!(p, Expr::Num(i) => *i as usize)).collect();
                 let init_list = self.process_const_init_list(init_list, &lengths)?;
                 *def = ConstArrayDef {
-                    identifier: take(identifier),
+                    id: take(id),
                     lengths,
                     init_list,
                 };
                 let (identifier, lengths, init_list) =
-                    risk!(def, ConstArrayDef { identifier, lengths, init_list } => (identifier, lengths, init_list));
+                    risk!(def, ConstArrayDef { id, lengths, init_list } => (id, lengths, init_list));
                 self.table.insert_definition(identifier, ConstArray(lengths, init_list))
             }
             VariableDef(identifier, init) => {
@@ -251,11 +239,7 @@ impl<'a> Checker<'a> {
                 }
                 self.table.insert_definition(identifier, Variable)
             }
-            ArrayDefTmp {
-                identifier,
-                lengths,
-                init_list,
-            } => {
+            ArrayDefTmp { id, lengths, init_list } => {
                 for expr in lengths.iter_mut() {
                     expr.const_eval(&self.table)?;
                 }
@@ -265,11 +249,11 @@ impl<'a> Checker<'a> {
                     None => None,
                 };
                 *def = ArrayDef {
-                    identifier: take(identifier),
+                    id: take(id),
                     lengths,
                     init_list,
                 };
-                let (identifier, lengths) = risk!(def, ArrayDef { identifier, lengths, init_list: _ } => (identifier, lengths));
+                let (identifier, lengths) = risk!(def, ArrayDef { id, lengths, init_list: _ } => (id, lengths));
                 self.table.insert_definition(identifier, Array(lengths))
             }
             _ => unreachable!(),
@@ -280,7 +264,7 @@ impl<'a> Checker<'a> {
         self.table.enter_scope();
         for block_item in block.iter_mut() {
             match block_item {
-                BlockItem::Definition(definition) => self.process_definition(definition)?,
+                BlockItem::Def(definition) => self.process_definition(definition)?,
                 BlockItem::Block(block) => self.process_block(block, return_void, in_while)?,
                 BlockItem::Statement(statement) => match statement.as_mut() {
                     Statement::Expr(expr) => expr.check_expr(&self.table)?,
@@ -324,20 +308,20 @@ impl<'a> Checker<'a> {
     pub fn check(&mut self, ast: &'a mut TranslationUnit) -> Result<(), String> {
         for i in ast.iter_mut() {
             match i.as_mut() {
-                GlobalItem::Definition(definition) => self.process_definition(definition)?,
-                GlobalItem::FunctionDefinition {
+                GlobalItem::Def(definition) => self.process_definition(definition)?,
+                GlobalItem::FuncDef {
                     return_void,
-                    identifier,
+                    id,
                     parameter_list,
                     block,
                 } => {
                     for p in parameter_list.iter_mut() {
-                        if let Parameter::PointerTmp(identifier, exprs) = p {
+                        if let Parameter::PointerTmp(id, exprs) = p {
                             for expr in exprs.iter_mut() {
                                 expr.const_eval(&self.table)?;
                             }
                             *p = Parameter::Pointer(
-                                take(identifier),
+                                take(id),
                                 exprs.iter().map(|p| risk!(p, Expr::Num(i) => *i as usize)).collect(),
                             )
                         }
@@ -351,8 +335,7 @@ impl<'a> Checker<'a> {
                         })
                         .collect();
                     let return_type = if *return_void { Void } else { Int };
-                    self.table
-                        .insert_definition(identifier, Function(return_type, parameter_type))?;
+                    self.table.insert_definition(id, Function(return_type, parameter_type))?;
                     self.table.enter_scope();
                     for p in parameter_list.iter() {
                         match p {
