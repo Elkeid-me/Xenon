@@ -7,17 +7,20 @@ mod arg_parse;
 mod frontend;
 mod preprocessor;
 
-fn compile() {
-    todo!()
-}
-
-fn main() -> std::io::Result<()> {
-    match frontend::generate_ir(&preprocessor::preprocess(&read_to_string("test/src.txt")?)) {
-        Ok(ast) => {
-            let mut fs = File::create("test/result.txt")?;
-            fs.write_fmt(format_args!("{:#?}", ast))?
-        }
-        Err(s) => println!("{}", s),
+fn compile() -> Result<(), Box<dyn std::error::Error>> {
+    let (mode, input, output) = arg_parse::parse(std::env::args())?;
+    let code = preprocessor::preprocess(&read_to_string(input)?);
+    let ast = frontend::generate_ir(&code)?;
+    let mut f = File::create(output)?;
+    match mode {
+        _ => f.write_fmt(format_args!("{:#?}", ast))?,
     }
     Ok(())
+}
+
+fn main() {
+    if let Err(s) = compile() {
+        println!("{}", s);
+        std::process::exit(0);
+    }
 }
