@@ -20,44 +20,44 @@ pub enum Parameter {
 
 #[derive(Debug)]
 pub enum Definition {
-    ConstVariableDefinitionTmp(String, Expr),
-    ConstVariableDefinition(String, i32),
+    ConstVariableDefTmp(String, Expr),
+    ConstVariableDef(String, i32),
     ConstArrayDefinitionTmp {
         identifier: String,
         lengths: Vec<Expr>,
-        init_list: InitializerList,
+        init_list: InitList,
     },
-    ConstArrayDefinition {
+    ConstArrayDef {
         identifier: String,
         lengths: Vec<usize>,
-        init_list: ConstInitializerList,
+        init_list: ConstInitList,
     },
-    VariableDefinition(String, Option<Expr>),
-    ArrayDefinitionTmp {
+    VariableDef(String, Option<Expr>),
+    ArrayDefTmp {
         identifier: String,
         lengths: Vec<Expr>,
-        init_list: Option<InitializerList>,
+        init_list: Option<InitList>,
     },
-    ArrayDefinition {
+    ArrayDef {
         identifier: String,
         lengths: Vec<usize>,
-        init_list: Option<InitializerList>,
+        init_list: Option<InitList>,
     },
 }
 
-pub type InitializerList = Vec<InitializerListItem>;
+pub type InitList = Vec<InitListItem>;
 
 #[derive(Debug)]
-pub enum InitializerListItem {
-    InitializerList(Box<InitializerList>),
+pub enum InitListItem {
+    InitList(Box<InitList>),
     Expr(Expr),
 }
 
-pub type ConstInitializerList = Vec<ConstInitializerListItem>;
+pub type ConstInitList = Vec<ConstInitListItem>;
 
 #[derive(Debug)]
-pub enum ConstInitializerListItem {
-    InitializerList(Box<ConstInitializerList>),
+pub enum ConstInitListItem {
+    InitList(Box<ConstInitList>),
     Num(i32),
 }
 
@@ -163,4 +163,10 @@ pub enum Expr {
     Identifier(String),
     FunctionCall(String, Vec<Expr>),
     ArrayElement(String, Vec<Expr>),
+}
+
+impl Default for Expr {
+    fn default() -> Self {
+        Expr::Num(0)
+    }
 }

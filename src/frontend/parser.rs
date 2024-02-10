@@ -16,7 +16,7 @@ pub struct AstBuilder {
 }
 
 impl AstBuilder {
-    pub fn new() -> AstBuilder {
+    pub fn new() -> Self {
         Self {
             pratt_parser: PrattParser::new()
                 .op(Op::infix(Rule::assignment, Right)
@@ -75,7 +75,7 @@ impl AstBuilder {
                     let mut iter = pair.into_inner();
                     ArrayElement(
                         iter.next().unwrap().as_str().to_string(),
-                        iter.map(|p| self.parse_expr(p)).collect(),
+                        iter.next().unwrap().into_inner().map(|p| self.parse_expr(p)).collect(),
                     )
                 }
                 rule => {
@@ -146,10 +146,10 @@ impl AstBuilder {
             .parse(pair.into_inner())
     }
 
-    fn parse_init_list_item(&self, pair: Pair<Rule>) -> InitializerListItem {
+    fn parse_init_list_item(&self, pair: Pair<Rule>) -> InitListItem {
         match pair.as_rule() {
-            Rule::initializer_list => InitializerListItem::InitializerList(Box::new(self.parse_init_list(pair))),
-            Rule::expression => InitializerListItem::Expr(self.parse_expr(pair)),
+            Rule::initializer_list => InitListItem::InitList(Box::new(self.parse_init_list(pair))),
+            Rule::expression => InitListItem::Expr(self.parse_expr(pair)),
             rule => {
                 dbg!(rule);
                 unreachable!()
@@ -157,7 +157,7 @@ impl AstBuilder {
         }
     }
 
-    fn parse_init_list(&self, pair: Pair<Rule>) -> InitializerList {
+    fn parse_init_list(&self, pair: Pair<Rule>) -> InitList {
         pair.into_inner().map(|pair| self.parse_init_list_item(pair)).collect()
     }
 
@@ -165,14 +165,14 @@ impl AstBuilder {
         match pair.as_rule() {
             Rule::const_variable_definition => {
                 let mut iter = pair.into_inner();
-                Definition::ConstVariableDefinitionTmp(
+                Definition::ConstVariableDefTmp(
                     iter.next().unwrap().as_str().to_string(),
                     self.parse_expr(iter.next().unwrap()),
                 )
             }
             Rule::variable_definition => {
                 let mut iter = pair.into_inner();
-                Definition::VariableDefinition(
+                Definition::VariableDef(
                     iter.next().unwrap().as_str().to_string(),
                     match iter.next() {
                         Some(p) => Some(self.parse_expr(p)),
@@ -190,7 +190,7 @@ impl AstBuilder {
             }
             Rule::array_definition => {
                 let mut iter = pair.into_inner();
-                Definition::ArrayDefinitionTmp {
+                Definition::ArrayDefTmp {
                     identifier: iter.next().unwrap().as_str().to_string(),
                     lengths: iter.next().unwrap().into_inner().map(|expr| self.parse_expr(expr)).collect(),
                     init_list: match iter.next() {

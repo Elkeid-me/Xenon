@@ -1,12 +1,12 @@
 use super::{
-    ast::*,
+    ast::{Definition::*, *},
     expr::types::Type::{self, *},
 };
 use std::{collections::HashMap, mem::take, vec};
 pub enum SymbolTableItem<'a> {
     ConstVariable(i32),
     Variable,
-    ConstArray(&'a Vec<usize>, &'a ConstInitializerList),
+    ConstArray(&'a Vec<usize>, &'a ConstInitList),
     Array(&'a Vec<usize>),
     Function(Type<'a>, Vec<Type<'a>>),
     Pointer(&'a Vec<usize>),
@@ -82,47 +82,168 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn process_init_list(&self, init_list: &mut InitializerList, lengths: &[usize]) -> Result<InitializerList, String> {
-        todo!()
-    }
-
-    fn process_const_init_list(&self, init_list: &mut InitializerList, lengths: &[usize]) -> Result<ConstInitializerList, String> {
-        let prod = lengths.iter().fold(1usize, |l, r| l * *r);
-        for ele in init_list.iter_mut() {
-            match ele {
-                InitializerListItem::InitializerList(_) => todo!(),
-                InitializerListItem::Expr(_) => todo!(),
+    fn process_init_list(&self, init_list: &mut InitList, lengths: &[usize]) -> Result<InitList, String> {
+        fn process_init_list_impl(
+            checker: &Checker,
+            init_list: &mut InitList,
+            len_prod: &[usize],
+        ) -> Result<(InitList, usize), String> {
+            if init_list.is_empty() {
+                return Ok((InitList::new(), *len_prod.last().unwrap()));
             }
+            let mut v = Vec::new();
+            let mut sum = 0usize;
+            for ele in init_list {
+                match ele {
+                    InitListItem::InitList(l) => {
+                        if len_prod.len() == 1 || sum % len_prod[0] != 0 {
+                            return Err(format!("{:?} 不能是初始化列表", l));
+                        }
+                        let mut z = 0usize;
+                        for i in 0..len_prod.len() - 1 {
+                            if sum % len_prod[i] == 0 {
+                                z = i;
+                            } else {
+                                break;
+                            }
+                        }
+                        let (l, s) = process_init_list_impl(checker, l, &len_prod[0..=z])?;
+                        let mut v_ref = &mut v;
+                        for _ in z + 2..len_prod.len() {
+                            if v_ref.is_empty() {
+                                v_ref.push(InitListItem::InitList(Box::new(InitList::new())));
+                            }
+                            v_ref = risk!(v_ref.last_mut().unwrap(), InitListItem::InitList(l) => l.as_mut());
+                        }
+                        v_ref.push(InitListItem::InitList(Box::new(l)));
+                        sum += s;
+                    }
+                    InitListItem::Expr(expr) => {
+                        let mut v_ref = &mut v;
+                        for &i in len_prod.iter().rev().skip(1) {
+                            if v_ref.is_empty() || sum % i == 0 {
+                                v_ref.push(InitListItem::InitList(Box::new(InitList::new())));
+                            }
+                            v_ref = risk!(v_ref.last_mut().unwrap(), InitListItem::InitList(l) => l.as_mut());
+                        }
+                        if !matches!(expr.expr_type(&checker.table)?, Int) {
+                            return Err(format!("{:?} 不是整型表达式", expr));
+                        }
+                        v_ref.push(InitListItem::Expr(take(expr)));
+                        sum += 1;
+                    }
+                }
+                if sum > *len_prod.last().unwrap() {
+                    return Err("初始化列表过长".to_string());
+                }
+            }
+            Ok((v, *len_prod.last().unwrap()))
         }
-        todo!()
+        let len_prod: Vec<usize> = lengths
+            .iter()
+            .rev()
+            .scan(1, |l, &r| {
+                *l = *l * r;
+                Some(*l)
+            })
+            .collect();
+        Ok(process_init_list_impl(self, init_list, &len_prod)?.0)
     }
 
-    fn process_definition(&mut self, definition: &'a mut Definition) -> Result<(), String> {
-        match definition {
-            Definition::ConstVariableDefinitionTmp(identifier, init) => {
-                *definition = Definition::ConstVariableDefinition(take(identifier), init.const_eval(&self.table)?);
-                let (identifier, init) = risk!(definition, Definition::ConstVariableDefinition(id, i) => (id, *i));
+    fn process_const_init_list(&self, init_list: &mut InitList, lengths: &[usize]) -> Result<ConstInitList, String> {
+        fn process_const_init_list_impl(
+            checker: &Checker,
+            init_list: &mut InitList,
+            len_prod: &[usize],
+        ) -> Result<(ConstInitList, usize), String> {
+            if init_list.is_empty() {
+                return Ok((ConstInitList::new(), *len_prod.last().unwrap()));
+            }
+            let mut v = Vec::new();
+            let mut sum = 0usize;
+            for ele in init_list {
+                match ele {
+                    InitListItem::InitList(l) => {
+                        if len_prod.len() == 1 || sum % len_prod[0] != 0 {
+                            return Err(format!("{:?} 不能是初始化列表", l));
+                        }
+                        let mut z = 0usize;
+                        for i in 0..len_prod.len() - 1 {
+                            if sum % len_prod[i] == 0 {
+                                z = i;
+                            } else {
+                                break;
+                            }
+                        }
+                        let (l, s) = process_const_init_list_impl(checker, l, &len_prod[0..=z])?;
+                        let mut v_ref = &mut v;
+                        for _ in z + 2..len_prod.len() {
+                            if v_ref.is_empty() {
+                                v_ref.push(ConstInitListItem::InitList(Box::new(ConstInitList::new())));
+                            }
+                            v_ref = risk!(v_ref.last_mut().unwrap(), ConstInitListItem::InitList(l) => l.as_mut());
+                        }
+                        v_ref.push(ConstInitListItem::InitList(Box::new(l)));
+                        sum += s;
+                    }
+                    InitListItem::Expr(expr) => {
+                        let mut v_ref = &mut v;
+                        for &i in len_prod.iter().rev().skip(1) {
+                            if v_ref.is_empty() || sum % i == 0 {
+                                v_ref.push(ConstInitListItem::InitList(Box::new(ConstInitList::new())));
+                            }
+                            v_ref = risk!(v_ref.last_mut().unwrap(), ConstInitListItem::InitList(l) => l.as_mut());
+                        }
+                        v_ref.push(ConstInitListItem::Num(expr.const_eval(&checker.table)?));
+                        sum += 1;
+                    }
+                }
+                if sum > *len_prod.last().unwrap() {
+                    return Err("初始化列表过长".to_string());
+                }
+            }
+            Ok((v, *len_prod.last().unwrap()))
+        }
+        let len_prod: Vec<usize> = lengths
+            .iter()
+            .rev()
+            .scan(1, |l, &r| {
+                *l = *l * r;
+                Some(*l)
+            })
+            .collect();
+        Ok(process_const_init_list_impl(self, init_list, &len_prod)?.0)
+    }
+
+    fn process_definition(&mut self, def: &'a mut Definition) -> Result<(), String> {
+        match def {
+            ConstVariableDefTmp(identifier, init) => {
+                *def = ConstVariableDef(take(identifier), init.const_eval(&self.table)?);
+                let (identifier, init) = risk!(def, ConstVariableDef(id, i) => (id, *i));
                 self.table.insert_definition(identifier, ConstVariable(init))
             }
-            Definition::ConstArrayDefinitionTmp {
+            ConstArrayDefinitionTmp {
                 identifier,
                 lengths,
                 init_list,
             } => {
                 for expr in lengths.iter_mut() {
-                    expr.const_eval(&self.table)?;
+                    if expr.const_eval(&self.table)? <= 0 {
+                        return Err(format!("{:?} 的值小于等于 0", expr));
+                    }
                 }
                 let lengths: Vec<usize> = lengths.iter_mut().map(|p| risk!(p, Expr::Num(i) => *i as usize)).collect();
                 let init_list = self.process_const_init_list(init_list, &lengths)?;
-                *definition = Definition::ConstArrayDefinition {
+                *def = ConstArrayDef {
                     identifier: take(identifier),
                     lengths,
                     init_list,
                 };
-                let (identifier, lengths, init_list) = risk!(definition, Definition::ConstArrayDefinition { identifier, lengths, init_list } => (identifier, lengths, init_list));
+                let (identifier, lengths, init_list) =
+                    risk!(def, ConstArrayDef { identifier, lengths, init_list } => (identifier, lengths, init_list));
                 self.table.insert_definition(identifier, ConstArray(lengths, init_list))
             }
-            Definition::VariableDefinition(identifier, init) => {
+            VariableDef(identifier, init) => {
                 if let Some(expr) = init {
                     if !matches!(expr.expr_type(&self.table)?, Int) {
                         return Err(format!("{:?} 不是整型表达式", expr));
@@ -130,7 +251,7 @@ impl<'a> Checker<'a> {
                 }
                 self.table.insert_definition(identifier, Variable)
             }
-            Definition::ArrayDefinitionTmp {
+            ArrayDefTmp {
                 identifier,
                 lengths,
                 init_list,
@@ -143,12 +264,13 @@ impl<'a> Checker<'a> {
                     Some(init_list) => Some(self.process_init_list(init_list, &lengths)?),
                     None => None,
                 };
-                *definition = Definition::ArrayDefinition {
+                *def = ArrayDef {
                     identifier: take(identifier),
                     lengths,
                     init_list,
                 };
-                todo!()
+                let (identifier, lengths) = risk!(def, ArrayDef { identifier, lengths, init_list: _ } => (identifier, lengths));
+                self.table.insert_definition(identifier, Array(lengths))
             }
             _ => unreachable!(),
         }
@@ -175,7 +297,7 @@ impl<'a> Checker<'a> {
                     },
                     Statement::While { condition, block } => match condition.expr_type(&self.table)? {
                         Void => return Err(format!("{:?} 不能作为 if 的条件", condition)),
-                        _ => self.process_block(block, return_void, in_while)?,
+                        _ => self.process_block(block, return_void, true)?,
                     },
                     Statement::Return(expr) => match (expr, return_void) {
                         (None, true) => (),
@@ -224,7 +346,7 @@ impl<'a> Checker<'a> {
                         .iter()
                         .map(|p| match p {
                             Parameter::Int(_) => Int,
-                            Parameter::Pointer(_, lengths) => Type::Pointer(lengths),
+                            Parameter::Pointer(_, lengths) => Pointer(lengths),
                             Parameter::PointerTmp(_, _) => unreachable!(),
                         })
                         .collect();

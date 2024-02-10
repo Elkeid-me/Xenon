@@ -1,7 +1,9 @@
+use crate::risk;
+
 use super::{
-    super::ast::{ArithmeticOp::*, ArithmeticUnaryOp::*, Expr, InfixOp::*, InitializerList, InitializerListItem, UnaryOp::*},
+    super::ast::{ArithmeticOp::*, ArithmeticUnaryOp::*, ConstInitListItem, Expr, InfixOp::*, UnaryOp::*},
     super::checker::*,
-    types::Type::{self, Array, Int},
+    types::Type::{self, Array, Int, Pointer},
 };
 
 use std::iter::zip;
@@ -43,7 +45,6 @@ impl<'a> Expr {
                                 Less => (lhs < rhs).into(),
                                 LessOrEqual => (lhs <= rhs).into(),
                             };
-                            *self = Expr::Num(val);
                             Ok((Int, false, Some(val)))
                         } else if matches!((lhs_type, rhs_type), (Int, Int)) {
                             Ok((Int, false, None))
@@ -64,7 +65,6 @@ impl<'a> Expr {
                                 Positive => i,
                                 BitNot => !i,
                             };
-                            *self = Expr::Num(value);
                             Ok((Int, false, Some(value)))
                         } else if matches!(exp_type, Int) {
                             Ok((Int, false, None))
@@ -83,10 +83,7 @@ impl<'a> Expr {
             //
             // 整型常量必定带有初始化列表, 而初始化列表已经检查过并计算过了, 所以一定是 `InitializerListItem::Expr(Expr::Num(_))`
             Expr::Identifier(identifier) => match context.search(identifier) {
-                Some(SymbolTableItem::ConstVariable(i)) => {
-                    *self = Expr::Num(*i);
-                    Ok((Int, false, Some(*i)))
-                }
+                Some(SymbolTableItem::ConstVariable(i)) => Ok((Int, false, Some(*i))),
                 Some(SymbolTableItem::Variable) => Ok((Int, true, None)),
                 Some(SymbolTableItem::Array(lengths)) | Some(SymbolTableItem::ConstArray(lengths, _)) => {
                     Ok((Array(lengths), false, None))
@@ -109,49 +106,103 @@ impl<'a> Expr {
                 }
                 _ => Err(format!("{} 不存在，或不是函数", identifier)),
             },
-            Expr::ArrayElement(identifier, length) => {
-                todo!()
-            }
+            Expr::ArrayElement(identifier, subscripts) => match context.search(identifier) {
+                Some(SymbolTableItem::Array(lengths)) => {
+                    if subscripts.len() > lengths.len() {
+                        return Err(format!("{:?} 错误", subscripts));
+                    }
+                    for expr in subscripts.iter_mut() {
+                        if !matches!(expr.expr_type(context)?, Int) {
+                            return Err(format!("{:?} 不是整型表达式", expr));
+                        }
+                    }
+                    if subscripts.len() == lengths.len() {
+                        Ok((Int, true, None))
+                    } else {
+                        Ok((Array(&lengths[lengths.len() - subscripts.len()..]), false, None))
+                    }
+                }
+                Some(SymbolTableItem::ConstArray(lengths, init_list)) => {
+                    if subscripts.len() > lengths.len() {
+                        return Err(format!("{:?} 错误", subscripts));
+                    }
+                    for expr in subscripts.iter_mut() {
+                        if !matches!(expr.expr_type(context)?, Int) {
+                            return Err(format!("{:?} 不是整型表达式", expr));
+                        }
+                    }
+                    if subscripts.len() == lengths.len() {
+                        if subscripts.iter().all(|p| matches!(p, Expr::Num(_))) {
+                            let mut v_ref = *init_list;
+                            for (expr, &len) in zip(subscripts.iter(), lengths.iter()).take(subscripts.len() - 1) {
+                                let i = risk!(expr, Expr::Num(i) => *i as usize);
+                                if i >= len {
+                                    return Err(format!("{:?} 超过了长度限制", i));
+                                } else if i >= v_ref.len() {
+                                    return Ok((Int, false, Some(0)));
+                                }
+                                v_ref = risk!(&v_ref[i], ConstInitListItem::InitList(l) => l);
+                            }
+
+                            let i = risk!(subscripts.last().unwrap(), Expr::Num(i) => *i as usize);
+                            let len = *lengths.last().unwrap();
+
+                            if i >= len {
+                                Err(format!("{:?} 超过了长度限制", i))
+                            } else if i >= v_ref.len() {
+                                Ok((Int, false, Some(0)))
+                            } else {
+                                Ok((Int, false, Some(risk!(v_ref[i], ConstInitListItem::Num(i) => i))))
+                            }
+                        } else {
+                            Ok((Int, false, None))
+                        }
+                    } else {
+                        Ok((Array(&lengths[lengths.len() - subscripts.len()..]), false, None))
+                    }
+                }
+                Some(SymbolTableItem::Pointer(lengths)) => {
+                    if subscripts.len() - 1 > lengths.len() {
+                        return Err(format!("{:?} 错误", subscripts));
+                    }
+                    for expr in subscripts.iter_mut() {
+                        if !matches!(expr.expr_type(context)?, Int) {
+                            return Err(format!("{:?} 不是整型表达式", expr));
+                        }
+                    }
+                    if subscripts.len() - 1 == lengths.len() {
+                        Ok((Int, true, None))
+                    } else {
+                        Ok((Pointer(&lengths[lengths.len() - subscripts.len()..]), false, None))
+                    }
+                }
+                _ => Err(format!("{:?} 不能使用下标运算符", identifier)),
+            },
         }
     }
 
+    fn const_eval_wrap(&mut self, context: &'a SymbolTable) -> Result<(Type<'a>, bool, Option<i32>), String> {
+        let (type_, is_left_value, value) = self.const_eval_impl(context)?;
+        if let Some(i) = value {
+            *self = Expr::Num(i);
+        }
+        Ok((type_, is_left_value, value))
+    }
+
     pub fn check_expr(&mut self, context: &SymbolTable) -> Result<(), String> {
-        self.const_eval_impl(context)?;
+        self.const_eval_wrap(context)?;
         Ok(())
     }
 
     pub fn expr_type(&mut self, context: &'a SymbolTable) -> Result<Type<'a>, String> {
-        let (type_, _, _) = self.const_eval_impl(context)?;
+        let (type_, _, _) = self.const_eval_wrap(context)?;
         Ok(type_)
     }
 
     pub fn const_eval(&mut self, context: &SymbolTable) -> Result<i32, String> {
-        match self.const_eval_impl(context)?.2 {
+        match self.const_eval_wrap(context)?.2 {
             Some(i) => Ok(i),
             None => Err(format!("{:?} 不是常量表达式", self)),
-        }
-    }
-}
-
-pub trait Depth {
-    fn depth(&self) -> usize;
-}
-
-impl Depth for InitializerList {
-    fn depth(&self) -> usize {
-        if self.is_empty() {
-            1usize
-        } else {
-            self.iter().map(|item| item.depth()).max().unwrap() + 1usize
-        }
-    }
-}
-
-impl Depth for InitializerListItem {
-    fn depth(&self) -> usize {
-        match self {
-            InitializerListItem::InitializerList(list) => list.depth(),
-            InitializerListItem::Expr(_) => 1usize,
         }
     }
 }
