@@ -30,7 +30,7 @@ array_definition    =  { identifier ~ array_lengths ~ ("=" ~ initializer_list)? 
 
 array_lengths = _{ array_subscript }
 
-initializer_list      =  { "{" ~ initializer_list_item ~ ("," ~ initializer_list_item)* ~ "}" }
+initializer_list      =  { "{" ~ (initializer_list_item ~ ("," ~ initializer_list_item)*)? ~ "}" }
 initializer_list_item = _{ initializer_list | expression}
 
 primary = _{ integer_hex | integer_bin | integer_oct | integer_dec | function_call | array_element | identifier | "(" ~ expression ~ ")" }
