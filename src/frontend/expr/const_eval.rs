@@ -133,23 +133,20 @@ impl<'a> Expr {
                     }
                     if subscripts.len() == lengths.len() {
                         if subscripts.iter().all(|p| matches!(p, Expr::Num(_))) {
+                            if !zip(subscripts.iter(), lengths.iter()).all(|(l, &r)| risk!(l, Expr::Num(i) => *i as usize) < r) {
+                                return Err("下标超出范围".to_string());
+                            }
                             let mut v_ref = *init_list;
-                            for (expr, &len) in zip(subscripts.iter(), lengths.iter()).take(subscripts.len() - 1) {
+                            for expr in subscripts.iter().take(subscripts.len() - 1) {
                                 let i = risk!(expr, Expr::Num(i) => *i as usize);
-                                if i >= len {
-                                    return Err(format!("{:?} 超过了长度限制", i));
-                                } else if i >= v_ref.len() {
+                                if i >= v_ref.len() {
                                     return Ok((Int, false, Some(0)));
                                 }
                                 v_ref = risk!(&v_ref[i], ConstInitListItem::InitList(l) => l);
                             }
 
                             let i = risk!(subscripts.last().unwrap(), Expr::Num(i) => *i as usize);
-                            let len = *lengths.last().unwrap();
-
-                            if i >= len {
-                                Err(format!("{:?} 超过了长度限制", i))
-                            } else if i >= v_ref.len() {
+                            if i >= v_ref.len() {
                                 Ok((Int, false, Some(0)))
                             } else {
                                 Ok((Int, false, Some(risk!(v_ref[i], ConstInitListItem::Num(i) => i))))
