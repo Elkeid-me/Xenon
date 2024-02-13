@@ -5,8 +5,8 @@ mod front_optimizer;
 mod parser;
 
 fn generate_ast(code: &str) -> Result<ast::TranslationUnit, String> {
-    let mut ast = parser::AstBuilder::new().build_ast(code);
-    checker::Checker::new().check(&mut ast)?;
+    let mut ast = parser::build_ast(code);
+    checker::check(&mut ast)?;
     Ok(ast)
 }
 

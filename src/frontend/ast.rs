@@ -151,7 +151,7 @@ pub enum OtherUnaryOp {
 #[derive(Debug)]
 pub enum UnaryOp {
     ArithUnary(ArithmeticUnaryOp),
-    Other(OtherUnaryOp),
+    Others(OtherUnaryOp),
 }
 
 #[derive(Debug)]
