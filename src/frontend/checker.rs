@@ -267,7 +267,7 @@ fn process_block<'a>(context: &mut SymbolTable<'a>, block: &'a mut Block, return
     Ok(())
 }
 
-pub fn check(ast: &mut TranslationUnit) -> Result<(), String> {
+pub fn check(mut ast: TranslationUnit) -> Result<TranslationUnit, String> {
     let mut context = vec![HashMap::from([
         ("getint", Function(Int, Vec::new())),
         ("getch", Function(Int, Vec::new())),
@@ -323,5 +323,5 @@ pub fn check(ast: &mut TranslationUnit) -> Result<(), String> {
             }
         }
     }
-    Ok(())
+    Ok(ast)
 }
