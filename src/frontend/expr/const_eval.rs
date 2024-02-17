@@ -70,7 +70,7 @@ impl<'a> Expr {
                 if subscripts.len() == lengths.len() {
                     Ok((Int, true, None))
                 } else {
-                    Ok((Array(&lengths[lengths.len() - subscripts.len()..]), false, None))
+                    Ok((Array(&lengths[subscripts.len()..]), false, None))
                 }
             }
             Some(SymbolTableItem::ConstArray(lengths, init_list)) => {
@@ -107,7 +107,7 @@ impl<'a> Expr {
                     Ok((Int, false, None))
                 }
                 // } else {
-                //     Ok((Array(&lengths[lengths.len() - subscripts.len()..]), false, None))
+                //     Ok((Array(&lengths[subscripts.len()..]), false, None))
                 // }
             }
             Some(SymbolTableItem::Pointer(lengths)) => {
@@ -122,7 +122,7 @@ impl<'a> Expr {
                 if subscripts.len() - 1 == lengths.len() {
                     Ok((Int, true, None))
                 } else {
-                    Ok((Pointer(&lengths[lengths.len() - subscripts.len()..]), false, None))
+                    Ok((Pointer(&lengths[subscripts.len()..]), false, None))
                 }
             }
             _ => Err(format!("{:?} 不能使用下标运算符", identifier)),
@@ -169,8 +169,7 @@ impl<'a> Expr {
                         return Err("实参列表长度与函数定义不匹配".to_string());
                     }
                     for (expr, expect_type) in zip(arg_list.iter_mut(), para_types.iter()) {
-                        let (expr_type, _, _) = expr.const_eval_impl(context)?;
-                        if !expr_type.can_convert_to(&expect_type) {
+                        if !expr.expr_type(context)?.can_convert_to(expect_type) {
                             return Err(format!("{:?} 无法转换到类型 {:?}", expr, expect_type));
                         }
                     }

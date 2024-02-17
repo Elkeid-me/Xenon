@@ -11,7 +11,7 @@ impl Type<'_> {
         match (self, rhs) {
             (Type::Int, Type::Int) | (Type::Void, Type::Void) => true,
             (Type::Array(len_l), Type::Array(len_r)) => len_l == len_r,
-            (Type::Array(len_l), Type::Pointer(len_r)) => &len_l[1..] == *len_r,
+            (Type::Array(len_l), Type::Pointer(len_r)) => len_l.len() == len_r.len() + 1 && &len_l[1..] == *len_r,
             (Type::Pointer(len_l), Type::Pointer(len_r)) => len_l == len_r,
             _ => false,
         }
