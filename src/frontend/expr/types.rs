@@ -1,4 +1,3 @@
-use std::iter::zip;
 #[derive(Debug, Clone, Copy)]
 pub enum Type<'a> {
     Int,
@@ -9,20 +8,12 @@ pub enum Type<'a> {
 
 impl Type<'_> {
     pub fn can_convert_to(&self, rhs: &Self) -> bool {
-        match self {
-            Type::Int => matches!(rhs, Type::Int),
-            Type::Void => matches!(rhs, Type::Int),
-            Type::Array(len_1) => match rhs {
-                Type::Pointer(len_2) if len_1.len() == len_2.len() + 1 => {
-                    zip(len_1.iter().skip(1), len_2.iter()).all(|(l, r)| *l == *r)
-                }
-                Type::Array(len_2) => len_1 == len_2,
-                _ => false,
-            },
-            Type::Pointer(len_1) => match rhs {
-                Type::Pointer(len_2) => len_1 == len_2,
-                _ => false,
-            },
+        match (self, rhs) {
+            (Type::Int, Type::Int) | (Type::Void, Type::Void) => true,
+            (Type::Array(len_l), Type::Array(len_r)) => len_l == len_r,
+            (Type::Array(len_l), Type::Pointer(len_r)) => &len_l[1..] == *len_r,
+            (Type::Pointer(len_l), Type::Pointer(len_r)) => len_l == len_r,
+            _ => false,
         }
     }
 }

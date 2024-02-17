@@ -91,10 +91,9 @@ impl InitListTrait for InitListItem {
         Self::InitList(Box::new(l))
     }
     fn new_item(expr: &mut Expr, symbol_table: &SymbolTable) -> Result<Self, String> {
-        if !matches!(expr.expr_type(symbol_table)?, Int) {
-            Err(format!("{:?} 不是整型表达式", expr))
-        } else {
-            Ok(Self::Expr(take(expr)))
+        match expr.expr_type(symbol_table)? {
+            Int => Ok(Self::Expr(take(expr))),
+            _ => Err(format!("{:?} 不是整型表达式", expr)),
         }
     }
     fn get_last(v: &mut Vec<Self>) -> &mut Vec<Self> {
@@ -323,5 +322,8 @@ pub fn check(mut ast: TranslationUnit) -> Result<TranslationUnit, String> {
             }
         }
     }
-    Ok(ast)
+    match context.search("main") {
+        Some(Function(Int, vec)) if vec.is_empty() => Ok(ast),
+        _ => Err("没有 main 函数，或 main 函数不符合要求".to_string()),
+    }
 }
