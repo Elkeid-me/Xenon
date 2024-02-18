@@ -50,9 +50,33 @@ impl<'a> Expr {
                 } else if matches!((lhs_type, rhs_type), (Int, Int)) {
                     Ok((Int, false, None))
                 } else {
-                    Err(format!("{0:?} 或 {1:?} 不是整数表达式", lhs, rhs))
+                    Err(format!("{:?} 或 {:?} 不是整数表达式", lhs, rhs))
                 }
             }
+            Logic(op) => match op {
+                LogicalAnd => {
+                    if matches!(lhs_value, Some(0)) || matches!(rhs_value, Some(0)) {
+                        Ok((Int, false, Some(0)))
+                    } else if let (Some(lhs), Some(rhs)) = (lhs_value, rhs_value) {
+                        Ok((Int, false, Some((lhs != 0 && rhs != 0) as i32)))
+                    } else if matches!((lhs_type, rhs_type), (Int, Int)) {
+                        Ok((Int, false, None))
+                    } else {
+                        Err(format!("{:?} 或 {:?} 不是整数表达式", lhs, rhs))
+                    }
+                }
+                LogicalOr => {
+                    if matches!(lhs_value, Some(v) if v != 0) || matches!(rhs_value, Some(v) if v != 0) {
+                        Ok((Int, false, Some(1)))
+                    } else if let (Some(lhs), Some(rhs)) = (lhs_value, rhs_value) {
+                        Ok((Int, false, Some((lhs != 0 || rhs != 0) as i32)))
+                    } else if matches!((lhs_type, rhs_type), (Int, Int)) {
+                        Ok((Int, false, None))
+                    } else {
+                        Err(format!("{:?} 或 {:?} 不是整数表达式", lhs, rhs))
+                    }
+                }
+            },
         }
     }
 

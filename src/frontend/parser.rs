@@ -5,7 +5,9 @@ use pest::pratt_parser::{
 use pest::{iterators::Pair, Parser};
 use pest_derive::Parser;
 
-use super::ast::{ArithmeticOp::*, ArithmeticUnaryOp::*, AssignOp::*, Expr::*, InfixOp::*, OtherUnaryOp::*, UnaryOp::*, *};
+use super::ast::{
+    ArithmeticOp::*, ArithmeticUnaryOp::*, AssignOp::*, Expr::*, InfixOp::*, LogicOp::*, OtherUnaryOp::*, UnaryOp::*, *,
+};
 
 #[derive(Parser)]
 #[grammar = "frontend/sysy.pest"]
@@ -85,8 +87,8 @@ fn parse_expr(expr_parser: &PrattParser<Rule>, pair: Pair<Rule>) -> Expr {
             Rule::add => InfixExpr(Box::new(lhs), Arith(Add), Box::new(rhs)),
             Rule::subtract => InfixExpr(Box::new(lhs), Arith(Subtract), Box::new(rhs)),
 
-            Rule::logical_and => InfixExpr(Box::new(lhs), Arith(LogicalAnd), Box::new(rhs)),
-            Rule::logical_or => InfixExpr(Box::new(lhs), Arith(LogicalOr), Box::new(rhs)),
+            Rule::logical_and => InfixExpr(Box::new(lhs), Logic(LogicalAnd), Box::new(rhs)),
+            Rule::logical_or => InfixExpr(Box::new(lhs), Logic(LogicalOr), Box::new(rhs)),
 
             Rule::bit_left_shift => InfixExpr(Box::new(lhs), Arith(BitLeftShift), Box::new(rhs)),
             Rule::bit_right_shift => InfixExpr(Box::new(lhs), Arith(BitRightShift), Box::new(rhs)),

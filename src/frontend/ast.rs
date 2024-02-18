@@ -108,9 +108,6 @@ pub enum ArithmeticOp {
     Add,
     Subtract,
 
-    LogicalAnd,
-    LogicalOr,
-
     BitLeftShift,
     BitRightShift,
     BirXor,
@@ -126,9 +123,16 @@ pub enum ArithmeticOp {
 }
 
 #[derive(Debug)]
+pub enum LogicOp {
+    LogicalAnd,
+    LogicalOr,
+}
+
+#[derive(Debug)]
 pub enum InfixOp {
     Assign(AssignOp),
     Arith(ArithmeticOp),
+    Logic(LogicOp)
 }
 
 #[derive(Debug)]
