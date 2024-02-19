@@ -197,6 +197,7 @@ fn parse_if_while_helper(expr_parser: &PrattParser<Rule>, pair: Pair<Rule>) -> B
     match pair.as_rule() {
         Rule::block => parse_block(expr_parser, pair),
         Rule::statement => vec![BlockItem::Statement(Box::new(parse_statement(expr_parser, pair)))],
+        Rule::empty_statement => Vec::new(),
         Rule::definitions_in_if_or_while_non_block => pair
             .into_inner()
             .skip(1)
