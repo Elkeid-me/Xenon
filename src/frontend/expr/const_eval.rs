@@ -3,18 +3,18 @@ use crate::{frontend::ast::UnaryOp, risk};
 use super::{
     super::ast::{ArithmeticOp::*, ArithmeticUnaryOp::*, ConstInitListItem, Expr, InfixOp, InfixOp::*, LogicOp::*, UnaryOp::*},
     super::checker::*,
-    types::Type::{self, Array, Int, Pointer},
+    types::Type::{self, Int, Pointer},
 };
 
-use std::iter::zip;
+use std::{cmp::Ordering, iter::zip, mem::take};
 
 // 类型, 是否合法, 是否是左值, 编译期计算值 (如果有)
 // 这里, "左值" 的概念即 C 中的可修改左值 (SysY 中的 const 必须为编译期常量表达式)
 type ReturnType<'a> = (Type<'a>, bool, Option<i32>);
 
-fn infix_impl<'a>(lhs: &mut Expr, op: &InfixOp, rhs: &mut Expr, context: &'a SymbolTable) -> Result<ReturnType<'a>, String> {
-    let (lhs_type, lhs_left_value, lhs_value) = lhs.const_eval_impl(context)?;
-    let (rhs_type, _, rhs_value) = rhs.const_eval_impl(context)?;
+fn __infix_impl<'a>(lhs: &mut Expr, op: &InfixOp, rhs: &mut Expr, context: &'a SymbolTable) -> Result<ReturnType<'a>, String> {
+    let (lhs_type, lhs_left_value, lhs_value) = lhs.const_eval_wrap(context)?;
+    let (rhs_type, _, rhs_value) = rhs.const_eval_wrap(context)?;
     match op {
         Assign(_) => {
             if !lhs_left_value || !rhs_type.can_convert_to(&lhs_type) {
@@ -65,23 +65,22 @@ fn infix_impl<'a>(lhs: &mut Expr, op: &InfixOp, rhs: &mut Expr, context: &'a Sym
     }
 }
 
-fn array_elem_impl<'a>(identifier: &String, subscripts: &mut Vec<Expr>, context: &'a SymbolTable) -> Result<ReturnType<'a>, String> {
-    match context.search(identifier) {
-        Some(SymbolTableItem::Array(lengths)) => {
-            if subscripts.len() > lengths.len() {
-                return Err(format!("{:?} 错误", subscripts));
-            }
-            for expr in subscripts.iter_mut() {
-                if !matches!(expr.expr_type(context)?, Int) {
-                    return Err(format!("{:?} 不是整型表达式", expr));
-                }
-            }
-            if subscripts.len() == lengths.len() {
-                Ok((Int, true, None))
-            } else {
-                Ok((Array(&lengths[subscripts.len()..]), false, None))
-            }
+fn __elem_impl<'a>(subscripts: &mut [Expr], lengths: &'a [usize], context: &'a SymbolTable) -> Result<ReturnType<'a>, String> {
+    for expr in subscripts.iter_mut() {
+        if !matches!(expr.expr_type(context)?, Int) {
+            return Err(format!("{:?} 不是整型表达式", expr));
         }
+    }
+    match (subscripts.len() - 1).cmp(&lengths.len()) {
+        Ordering::Less => Ok((Pointer(&lengths[subscripts.len()..]), false, None)),
+        Ordering::Equal => Ok((Int, true, None)),
+        Ordering::Greater => Err(format!("{:?} 错误", subscripts)),
+    }
+}
+
+fn __array_impl<'a>(identifier: &String, subscripts: &mut Vec<Expr>, context: &'a SymbolTable) -> Result<ReturnType<'a>, String> {
+    match context.search(identifier) {
+        Some(SymbolTableItem::Array(lengths)) => __elem_impl(subscripts, &lengths[1..], context),
         Some(SymbolTableItem::ConstArray(lengths, init_list)) => {
             if subscripts.len() != lengths.len() {
                 return Err(format!("{:?} 错误", subscripts));
@@ -91,7 +90,9 @@ fn array_elem_impl<'a>(identifier: &String, subscripts: &mut Vec<Expr>, context:
                     return Err(format!("{:?} 不是整型表达式", expr));
                 }
             }
-            if subscripts.iter().all(|p| matches!(p, Expr::Num(_))) {
+            if !subscripts.iter().all(|p| matches!(p, Expr::Num(_))) {
+                Ok((Int, false, None))
+            } else {
                 if !zip(subscripts.iter(), lengths.iter()).all(|(l, &r)| risk!(l, Expr::Num(i) => *i as usize) < r) {
                     return Err("下标超出范围".to_string());
                 }
@@ -110,31 +111,15 @@ fn array_elem_impl<'a>(identifier: &String, subscripts: &mut Vec<Expr>, context:
                 } else {
                     Ok((Int, false, Some(risk!(v_ref[i], ConstInitListItem::Num(i) => i))))
                 }
-            } else {
-                Ok((Int, false, None))
             }
         }
-        Some(SymbolTableItem::Pointer(lengths)) => {
-            if subscripts.len() - 1 > lengths.len() {
-                return Err(format!("{:?} 错误", subscripts));
-            }
-            for expr in subscripts.iter_mut() {
-                if !matches!(expr.expr_type(context)?, Int) {
-                    return Err(format!("{:?} 不是整型表达式", expr));
-                }
-            }
-            if subscripts.len() - 1 == lengths.len() {
-                Ok((Int, true, None))
-            } else {
-                Ok((Pointer(&lengths[subscripts.len()..]), false, None))
-            }
-        }
+        Some(SymbolTableItem::Pointer(lengths)) => __elem_impl(subscripts, lengths, context),
         _ => Err(format!("{:?} 不能使用下标运算符", identifier)),
     }
 }
 
-fn unary_impl<'a>(expr: &mut Expr, op: &UnaryOp, context: &'a SymbolTable) -> Result<ReturnType<'a>, String> {
-    let (expr_type, _, expr_value) = expr.const_eval_impl(context)?;
+fn __unary_impl<'a>(expr: &mut Expr, op: &UnaryOp, context: &'a SymbolTable) -> Result<ReturnType<'a>, String> {
+    let (expr_type, _, expr_value) = expr.const_eval_wrap(context)?;
     match op {
         ArithUnary(op) => match (expr_type, expr_value) {
             (_, Some(i)) => {
@@ -154,17 +139,16 @@ fn unary_impl<'a>(expr: &mut Expr, op: &UnaryOp, context: &'a SymbolTable) -> Re
 }
 
 impl<'a> Expr {
-    fn const_eval_impl(&mut self, context: &'a SymbolTable) -> Result<ReturnType<'a>, String> {
+    fn __const_eval_impl(&mut self, context: &'a SymbolTable) -> Result<ReturnType<'a>, String> {
         match self {
-            Expr::InfixExpr(lhs, op, rhs) => infix_impl(lhs, op, rhs, context),
-            Expr::UnaryExpr(op, expr) => unary_impl(expr, op, context),
+            Expr::InfixExpr(lhs, op, rhs) => __infix_impl(lhs, op, rhs, context),
+            Expr::UnaryExpr(op, expr) => __unary_impl(expr, op, context),
             Expr::Num(val) => Ok((Int, false, Some(*val))),
             Expr::Identifier(id) => match context.search(id) {
                 Some(SymbolTableItem::ConstVariable(i)) => Ok((Int, false, Some(*i))),
                 Some(SymbolTableItem::Variable) => Ok((Int, true, None)),
-                Some(SymbolTableItem::Array(lengths)) | Some(SymbolTableItem::ConstArray(lengths, _)) => {
-                    Ok((Array(lengths), false, None))
-                }
+                Some(SymbolTableItem::Array(lengths)) => Ok((Pointer(&lengths[1..]), false, None)),
+                Some(SymbolTableItem::ConstArray(_, _)) => Err(format!("常量数组 {} 不能转为指针", id)),
                 Some(SymbolTableItem::Pointer(lengths)) => Ok((Type::Pointer(lengths), false, None)),
                 _ => Err(format!("{} 不存在，或不是整型、数组或指针变量", id)),
             },
@@ -182,14 +166,17 @@ impl<'a> Expr {
                 }
                 _ => Err(format!("{} 不存在，或不是函数", id)),
             },
-            Expr::ArrayElement(identifier, subscripts) => array_elem_impl(identifier, subscripts, context),
+            Expr::ArrayElement(identifier, subscripts) => __array_impl(identifier, subscripts, context),
         }
     }
 
     fn const_eval_wrap(&mut self, context: &'a SymbolTable) -> Result<ReturnType<'a>, String> {
-        let (type_, is_left_value, value) = self.const_eval_impl(context)?;
+        let (type_, is_left_value, value) = self.__const_eval_impl(context)?;
         if let Some(i) = value {
             *self = Expr::Num(i);
+        }
+        if let Expr::UnaryExpr(UnaryOp::ArithUnary(Positive), expr) = self {
+            *self = take(expr);
         }
         Ok((type_, is_left_value, value))
     }

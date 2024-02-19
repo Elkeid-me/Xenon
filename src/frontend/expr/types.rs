@@ -2,17 +2,14 @@
 pub enum Type<'a> {
     Int,
     Void,
-    Array(&'a [usize]),
     Pointer(&'a [usize]),
 }
 
 impl Type<'_> {
     pub fn can_convert_to(&self, rhs: &Self) -> bool {
-        match (self, rhs) {
+        match (*self, *rhs) {
             (Type::Int, Type::Int) | (Type::Void, Type::Void) => true,
-            (Type::Array(len_l), Type::Array(len_r)) => len_l == len_r,
-            (Type::Array(len_l), Type::Pointer(len_r)) => len_l.len() == len_r.len() + 1 && &len_l[1..] == *len_r,
-            (Type::Pointer(len_l), Type::Pointer(len_r)) => len_l == len_r,
+            (Type::Pointer(l_1), Type::Pointer(l_2)) => l_1 == l_2,
             _ => false,
         }
     }

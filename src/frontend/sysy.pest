@@ -73,8 +73,8 @@ subtract = { "-" }
 logical_and = { "&&" }
 logical_or  = { "||" }
 
-bit_left_shift  = { ">>" }
-bit_right_shift = { "<<" }
+bit_left_shift  = { "<<" }
+bit_right_shift = { ">>" }
 bit_xor         = { "^" }
 bit_and         = { "&" }
 bit_or          = { "|" }
@@ -95,8 +95,8 @@ modulus_assignment         = { "%=" }
 bit_and_assignment         = { "&=" }
 bit_or_assignment          = { "|=" }
 bit_xor_assignment         = { "^=" }
-bit_left_shift_assignment  = { ">>=" }
-bit_right_shift_assignment = { "<<=" }
+bit_left_shift_assignment  = { "<<=" }
+bit_right_shift_assignment = { ">>=" }
 
 array_element   = { identifier ~ array_subscript }
 array_subscript = { ("[" ~ expression ~ "]")+ }
