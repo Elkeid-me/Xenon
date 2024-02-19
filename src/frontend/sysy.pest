@@ -11,10 +11,10 @@ parameter_list                =  { parameter_definition ~ ("," ~ parameter_defin
 parameter_definition          = _{ pointer_parameter_definition | variable_parameter_definition }
 pointer_parameter_definition  =  { int ~ identifier ~ "[" ~ "]" ~ array_lengths? }
 variable_parameter_definition =  { int ~ identifier }
-int                           = @{ "int" ~ WHITE_SPACE+ }
-void                          = @{ "void" ~ WHITE_SPACE+ }
+int                           = @{ "int" ~ !(ASCII_ALPHANUMERIC | "_") }
+void                          = @{ "void" ~ !(ASCII_ALPHANUMERIC | "_") }
 return_keyword                = @{ "return" ~ !(ASCII_ALPHANUMERIC | "_") }
-const_definition_type         = @{ ("const" ~ WHITE_SPACE+ ~ "int" | "int" ~ WHITE_SPACE+ ~ "const") ~ WHITE_SPACE+ }
+const_definition_type         = @{ ("const" ~ WHITE_SPACE+ ~ "int" | "int" ~ WHITE_SPACE+ ~ "const") ~ !(ASCII_ALPHANUMERIC | "_") }
 
 function_return_type = _{ int | void }
 

@@ -13,7 +13,7 @@ fn compile() -> Result<(), Box<dyn std::error::Error>> {
     let ast = frontend::generate_ir(&code)?;
     let mut f = File::create(output)?;
     match mode {
-        _ => f.write_fmt(format_args!("{:#?}", ast))?,
+        _ => f.write_fmt(format_args!("{:?}", ast))?,
     }
     Ok(())
 }

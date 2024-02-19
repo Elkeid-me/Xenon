@@ -132,7 +132,7 @@ pub enum LogicOp {
 pub enum InfixOp {
     Assign(AssignOp),
     Arith(ArithmeticOp),
-    Logic(LogicOp)
+    Logic(LogicOp),
 }
 
 #[derive(Debug)]
@@ -171,6 +171,6 @@ pub enum Expr {
 
 impl Default for Expr {
     fn default() -> Self {
-        Expr::Num(0)
+        Self::Num(0)
     }
 }

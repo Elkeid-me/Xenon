@@ -46,9 +46,9 @@ impl<'a> Scope<'a> for SymbolTable<'a> {
         None
     }
 
-    fn insert_definition(&mut self, identifier: &'a str, symbol: SymbolTableItem<'a>) -> Result<(), String> {
-        match self.last_mut().unwrap().insert(identifier, symbol) {
-            Some(_) => Err(format!("标识符 {} 在当前作用域中已存在", identifier)),
+    fn insert_definition(&mut self, id: &'a str, symbol: SymbolTableItem<'a>) -> Result<(), String> {
+        match self.last_mut().unwrap().insert(id, symbol) {
+            Some(_) => Err(format!("标识符 {} 在当前作用域中已存在", id)),
             None => Ok(()),
         }
     }
@@ -106,9 +106,9 @@ where
     T: InitListTrait,
 {
     if init_list.is_empty() {
-        return Ok((Vec::<T>::new(), *len_prod.last().unwrap()));
+        return Ok((Vec::new(), *len_prod.last().unwrap()));
     }
-    let mut v = Vec::<T>::new();
+    let mut v = Vec::new();
     let mut sum = 0usize;
     for ele in init_list {
         match ele {
@@ -171,8 +171,8 @@ where
 
 fn process_definition<'a>(context: &mut SymbolTable<'a>, def: &'a mut Definition) -> Result<(), String> {
     match def {
-        ConstVariableDefTmp(identifier, init) => {
-            *def = ConstVariableDef(take(identifier), init.const_eval(context)?);
+        ConstVariableDefTmp(id, init) => {
+            *def = ConstVariableDef(take(id), init.const_eval(context)?);
             let (identifier, init) = risk!(def, ConstVariableDef(id, i) => (id, *i));
             context.insert_definition(identifier, ConstVariable(init))
         }
@@ -234,15 +234,15 @@ fn process_block<'a>(context: &mut SymbolTable<'a>, block: &'a mut Block, return
                     then_block,
                     else_block,
                 } => match condition.expr_type(context)? {
-                    Void => return Err(format!("{:?} 不能作为 if 的条件", condition)),
-                    _ => {
+                    Int => {
                         process_block(context, then_block, return_void, in_while)?;
                         process_block(context, else_block, return_void, in_while)?;
                     }
+                    _ => return Err(format!("{:?} 不能作为 if 的条件", condition)),
                 },
                 Statement::While { condition, block } => match condition.expr_type(context)? {
-                    Void => return Err(format!("{:?} 不能作为 if 的条件", condition)),
-                    _ => process_block(context, block, return_void, true)?,
+                    Int => process_block(context, block, return_void, true)?,
+                    _ => return Err(format!("{:?} 不能作为 if 的条件", condition)),
                 },
                 Statement::Return(expr) => match (expr, return_void) {
                     (None, true) => (),
@@ -302,7 +302,7 @@ pub fn check(mut ast: TranslationUnit) -> Result<TranslationUnit, String> {
                     .map(|p| match p {
                         Parameter::Int(_) => Int,
                         Parameter::Pointer(_, lengths) => Pointer(lengths),
-                        Parameter::PointerTmp(_, _) => unreachable!(),
+                        _ => unreachable!(),
                     })
                     .collect();
                 let return_type = if *return_void { Void } else { Int };
@@ -314,7 +314,7 @@ pub fn check(mut ast: TranslationUnit) -> Result<TranslationUnit, String> {
                         Parameter::Pointer(identifier, lengths) => {
                             context.insert_definition(identifier, SymbolTableItem::Pointer(lengths))?
                         }
-                        Parameter::PointerTmp(_, _) => unreachable!(),
+                        _ => unreachable!(),
                     }
                 }
                 process_block(&mut context, block, *return_void, false)?;

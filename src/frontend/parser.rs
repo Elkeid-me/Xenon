@@ -160,10 +160,7 @@ fn parse_definition(expr_parser: &PrattParser<Rule>, pair: Pair<Rule>) -> Defini
             let mut iter = pair.into_inner();
             Definition::VariableDef(
                 iter.next().unwrap().as_str().to_string(),
-                match iter.next() {
-                    Some(p) => Some(parse_expr(expr_parser, p)),
-                    None => None,
-                },
+                iter.next().map(|expr| parse_expr(expr_parser, expr)),
             )
         }
         Rule::const_array_definition => {
@@ -189,10 +186,7 @@ fn parse_definition(expr_parser: &PrattParser<Rule>, pair: Pair<Rule>) -> Defini
                     .into_inner()
                     .map(|expr| parse_expr(expr_parser, expr))
                     .collect(),
-                init_list: match iter.next() {
-                    Some(iter) => Some(parse_init_list(expr_parser, iter)),
-                    None => None,
-                },
+                init_list: iter.next().map(|init_list| parse_init_list(expr_parser, init_list)),
             }
         }
         _ => unreachable!(),
@@ -217,10 +211,10 @@ fn parse_if(expr_parser: &PrattParser<Rule>, pair: Pair<Rule>) -> Statement {
     Statement::If {
         condition: parse_expr(expr_parser, iter.next().unwrap()),
         then_block: Box::new(parse_if_while_helper(expr_parser, iter.next().unwrap())),
-        else_block: match iter.next() {
-            Some(pair) => Box::new(parse_if_while_helper(expr_parser, pair)),
-            None => Box::new(Block::new()),
-        },
+        else_block: iter
+            .next()
+            .map(|block| Box::new(parse_if_while_helper(expr_parser, block)))
+            .unwrap_or_default(),
     }
 }
 
@@ -236,10 +230,12 @@ fn parse_statement(expr_parser: &PrattParser<Rule>, pair: Pair<Rule>) -> Stateme
     let iter = pair.into_inner().next().unwrap();
     match iter.as_rule() {
         Rule::expression => Statement::Expr(parse_expr(expr_parser, iter)),
-        Rule::return_statement => match iter.into_inner().skip(1).next() {
-            Some(exp) => Statement::Return(Some(parse_expr(expr_parser, exp))),
-            None => Statement::Return(None),
-        },
+        Rule::return_statement => iter
+            .into_inner()
+            .skip(1)
+            .next()
+            .map(|expr| Statement::Return(Some(parse_expr(expr_parser, expr))))
+            .unwrap_or(Statement::Return(None)),
         Rule::if_statement => parse_if(expr_parser, iter),
         Rule::while_statement => parse_while(expr_parser, iter),
         Rule::break_statement => Statement::Break,
@@ -276,10 +272,9 @@ fn parse_signature(expr_parser: &PrattParser<Rule>, pair: Pair<Rule>) -> (bool, 
                 let mut iter = pair.into_inner().skip(1);
                 Parameter::PointerTmp(
                     iter.next().unwrap().as_str().to_string(),
-                    match iter.next() {
-                        Some(exprs) => exprs.into_inner().map(|p| parse_expr(expr_parser, p)).collect(),
-                        None => Vec::new(),
-                    },
+                    iter.next()
+                        .map(|iter| iter.into_inner().map(|expr| parse_expr(expr_parser, expr)).collect())
+                        .unwrap_or_default(),
                 )
             }
             _ => unreachable!(),
