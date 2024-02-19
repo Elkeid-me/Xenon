@@ -238,15 +238,15 @@ fn parse_statement(expr_parser: &PrattParser<Rule>, pair: Pair<Rule>) -> Stateme
             .unwrap_or(Statement::Return(None)),
         Rule::if_statement => parse_if(expr_parser, iter),
         Rule::while_statement => parse_while(expr_parser, iter),
-        Rule::break_statement => Statement::Break,
-        Rule::continue_statement => Statement::Continue,
+        Rule::break_keyword => Statement::Break,
+        Rule::continue_keyword => Statement::Continue,
         _ => unreachable!(),
     }
 }
 
 fn parse_block(expr_parser: &PrattParser<Rule>, pair: Pair<Rule>) -> Block {
     pair.into_inner()
-        .filter(|pair| !matches!(pair.as_rule(), Rule::int | Rule::const_definition_type))
+        .filter(|pair| !matches!(pair.as_rule(), Rule::int_keyword | Rule::const_keyword))
         .map(|pair| match pair.as_rule() {
             Rule::block => BlockItem::Block(Box::new(parse_block(expr_parser, pair))),
             Rule::statement => BlockItem::Statement(Box::new(parse_statement(expr_parser, pair))),
@@ -260,7 +260,7 @@ fn parse_block(expr_parser: &PrattParser<Rule>, pair: Pair<Rule>) -> Block {
 
 fn parse_signature(expr_parser: &PrattParser<Rule>, pair: Pair<Rule>) -> (bool, String, Vec<Parameter>) {
     let mut iter = pair.into_inner();
-    let return_void = matches!(iter.next().unwrap().as_rule(), Rule::void);
+    let return_void = matches!(iter.next().unwrap().as_rule(), Rule::void_keyword);
     let id = iter.next().unwrap().as_str().to_string();
     let parameter_list = iter
         .next()
@@ -308,7 +308,7 @@ pub fn build_ast(code: &str) -> TranslationUnit {
     let expr_parser = new_expr_parser();
     let translation_unit = SysYParser::parse(Rule::translation_unit, code).unwrap();
     translation_unit
-        .filter(|pair| !matches!(pair.as_rule(), Rule::EOI | Rule::int | Rule::const_definition_type))
+        .filter(|pair| !matches!(pair.as_rule(), Rule::EOI | Rule::int_keyword | Rule::const_keyword))
         .map(|p| Box::new(parse_global_item(&expr_parser, p)))
         .collect()
 }

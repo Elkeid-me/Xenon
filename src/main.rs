@@ -9,11 +9,11 @@ mod preprocessor;
 
 fn compile() -> Result<(), Box<dyn std::error::Error>> {
     let (mode, input, output) = arg_parse::parse(std::env::args())?;
-    let code = preprocessor::preprocess(&read_to_string(input)?);
+    let code = preprocessor::preprocess(&read_to_string(input)?.replace("\r\n", "\n"));
     let ast = frontend::generate_ir(&code)?;
     let mut f = File::create(output)?;
     match mode {
-        _ => f.write_fmt(format_args!("{:?}", ast))?,
+        _ => f.write_fmt(format_args!("{:#?}", ast))?,
     }
     Ok(())
 }
