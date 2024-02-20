@@ -1,4 +1,7 @@
-use crate::{frontend::ast::UnaryOp, risk};
+use crate::{
+    frontend::ast::{ExprInner, SimpleType, UnaryOp},
+    risk,
+};
 
 use super::{
     super::ast::{ArithmeticOp::*, ArithmeticUnaryOp::*, ConstInitListItem, Expr, InfixOp, InfixOp::*, LogicOp::*, UnaryOp::*},
@@ -90,22 +93,22 @@ fn __array_impl<'a>(identifier: &String, subscripts: &mut Vec<Expr>, context: &'
                     return Err(format!("{:?} 不是整型表达式", expr));
                 }
             }
-            if !subscripts.iter().all(|p| matches!(p, Expr::Num(_))) {
+            if !subscripts.iter().all(|p| matches!(p.inner, ExprInner::Num(_))) {
                 Ok((Int, false, None))
             } else {
-                if !zip(subscripts.iter(), lengths.iter()).all(|(l, &r)| risk!(l, Expr::Num(i) => *i as usize) < r) {
+                if !zip(subscripts.iter(), lengths.iter()).all(|(l, &r)| risk!(l.inner, ExprInner::Num(i) => i as usize) < r) {
                     return Err("下标超出范围".to_string());
                 }
                 let mut v_ref = *init_list;
                 for expr in subscripts.iter().take(subscripts.len() - 1) {
-                    let i = risk!(expr, Expr::Num(i) => *i as usize);
+                    let i = risk!(expr.inner, ExprInner::Num(i) => i as usize);
                     if i >= v_ref.len() {
                         return Ok((Int, false, Some(0)));
                     }
                     v_ref = risk!(&v_ref[i], ConstInitListItem::InitList(l) => l);
                 }
 
-                let i = risk!(subscripts.last().unwrap(), Expr::Num(i) => *i as usize);
+                let i = risk!(subscripts.last().unwrap().inner, ExprInner::Num(i) => i as usize);
                 if i >= v_ref.len() {
                     Ok((Int, false, Some(0)))
                 } else {
@@ -140,11 +143,11 @@ fn __unary_impl<'a>(expr: &mut Expr, op: &UnaryOp, context: &'a SymbolTable) -> 
 
 impl<'a> Expr {
     fn __const_eval_impl(&mut self, context: &'a SymbolTable) -> Result<ReturnType<'a>, String> {
-        match self {
-            Expr::InfixExpr(lhs, op, rhs) => __infix_impl(lhs, op, rhs, context),
-            Expr::UnaryExpr(op, expr) => __unary_impl(expr, op, context),
-            Expr::Num(val) => Ok((Int, false, Some(*val))),
-            Expr::Identifier(id) => match context.search(id) {
+        match &mut self.inner {
+            ExprInner::InfixExpr(lhs, op, rhs) => __infix_impl(lhs, op, rhs, context),
+            ExprInner::UnaryExpr(op, expr) => __unary_impl(expr, op, context),
+            ExprInner::Num(val) => Ok((Int, false, Some(*val))),
+            ExprInner::Identifier(id) => match context.search(id) {
                 Some(SymbolTableItem::ConstVariable(i)) => Ok((Int, false, Some(*i))),
                 Some(SymbolTableItem::Variable) => Ok((Int, true, None)),
                 Some(SymbolTableItem::Array(lengths)) => Ok((Pointer(&lengths[1..]), false, None)),
@@ -152,7 +155,7 @@ impl<'a> Expr {
                 Some(SymbolTableItem::Pointer(lengths)) => Ok((Type::Pointer(lengths), false, None)),
                 _ => Err(format!("{} 不存在，或不是整型、数组或指针变量", id)),
             },
-            Expr::FunctionCall(id, arg_list) => match context.search(id) {
+            ExprInner::FunctionCall(id, arg_list) => match context.search(id) {
                 Some(SymbolTableItem::Function(type_, para_types)) => {
                     if arg_list.len() != para_types.len() {
                         return Err("实参列表长度与函数定义不匹配".to_string());
@@ -166,18 +169,23 @@ impl<'a> Expr {
                 }
                 _ => Err(format!("{} 不存在，或不是函数", id)),
             },
-            Expr::ArrayElement(identifier, subscripts) => __array_impl(identifier, subscripts, context),
+            ExprInner::ArrayElement(identifier, subscripts) => __array_impl(identifier, subscripts, context),
         }
     }
 
     fn const_eval_wrap(&mut self, context: &'a SymbolTable) -> Result<ReturnType<'a>, String> {
         let (type_, is_left_value, value) = self.__const_eval_impl(context)?;
         if let Some(i) = value {
-            *self = Expr::Num(i);
+            self.inner = ExprInner::Num(i);
         }
-        if let Expr::UnaryExpr(UnaryOp::ArithUnary(Positive), expr) = self {
+        if let ExprInner::UnaryExpr(UnaryOp::ArithUnary(Positive), expr) = &mut self.inner {
             *self = take(expr);
         }
+        self.type_ = match type_ {
+            Int => SimpleType::Int,
+            Type::Void => SimpleType::Void,
+            Pointer(_) => SimpleType::Pointer,
+        };
         Ok((type_, is_left_value, value))
     }
 

@@ -182,7 +182,10 @@ fn process_definition<'a>(context: &mut SymbolTable<'a>, def: &'a mut Definition
                     return Err(format!("{:?} 的值小于等于 0", expr));
                 }
             }
-            let lengths: Vec<usize> = lengths.iter_mut().map(|p| risk!(p, Expr::Num(i) => *i as usize)).collect();
+            let lengths: Vec<usize> = lengths
+                .iter_mut()
+                .map(|p| risk!(p.inner, ExprInner::Num(i) => i as usize))
+                .collect();
             let init_list = process_init_list(context, init_list, &lengths)?;
             *def = ConstArrayDef {
                 id: take(id),
@@ -204,7 +207,10 @@ fn process_definition<'a>(context: &mut SymbolTable<'a>, def: &'a mut Definition
             for expr in lengths.iter_mut() {
                 expr.const_eval(context)?;
             }
-            let lengths: Vec<usize> = lengths.iter_mut().map(|p| risk!(p, Expr::Num(i) => *i as usize)).collect();
+            let lengths: Vec<usize> = lengths
+                .iter_mut()
+                .map(|p| risk!(p.inner, ExprInner::Num(i) => i as usize))
+                .collect();
             let init_list = match init_list {
                 Some(init_list) => Some(process_init_list(context, init_list, &lengths)?),
                 None => None,
@@ -293,7 +299,10 @@ pub fn check(mut ast: TranslationUnit) -> Result<TranslationUnit, String> {
                         }
                         *p = Parameter::Pointer(
                             take(id),
-                            exprs.iter().map(|p| risk!(p, Expr::Num(i) => *i as usize)).collect(),
+                            exprs
+                                .iter()
+                                .map(|p| risk!(p.inner, ExprInner::Num(i) => i as usize))
+                                .collect(),
                         )
                     }
                 }

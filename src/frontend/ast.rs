@@ -159,7 +159,7 @@ pub enum UnaryOp {
 }
 
 #[derive(Debug)]
-pub enum Expr {
+pub enum ExprInner {
     InfixExpr(Box<Expr>, InfixOp, Box<Expr>),
     UnaryExpr(UnaryOp, Box<Expr>),
 
@@ -169,8 +169,33 @@ pub enum Expr {
     ArrayElement(String, Vec<Expr>),
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum SimpleType {
+    Int,
+    Pointer,
+    Void,
+}
+
+#[derive(Debug)]
+pub struct Expr {
+    pub inner: ExprInner,
+    pub type_: SimpleType,
+}
+
+impl From<ExprInner> for Expr {
+    fn from(inner: ExprInner) -> Self {
+        Self {
+            inner,
+            type_: SimpleType::Void,
+        }
+    }
+}
+
 impl Default for Expr {
     fn default() -> Self {
-        Self::Num(0)
+        Self {
+            inner: ExprInner::Num(0),
+            type_: SimpleType::Void,
+        }
     }
 }

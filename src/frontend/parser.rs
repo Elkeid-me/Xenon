@@ -6,7 +6,8 @@ use pest::{iterators::Pair, Parser};
 use pest_derive::Parser;
 
 use super::ast::{
-    ArithmeticOp::*, ArithmeticUnaryOp::*, AssignOp::*, Expr::*, InfixOp::*, LogicOp::*, OtherUnaryOp::*, UnaryOp::*, *,
+    ArithmeticOp::*, ArithmeticUnaryOp::*, AssignOp::*, Expr, ExprInner::*, InfixOp::*, LogicOp::*, OtherUnaryOp::*, SimpleType::*,
+    UnaryOp::*, *,
 };
 
 #[derive(Parser)]
@@ -54,80 +55,79 @@ fn parse_expr(expr_parser: &PrattParser<Rule>, pair: Pair<Rule>) -> Expr {
     expr_parser
         .map_primary(|pair| match pair.as_rule() {
             Rule::expression => parse_expr(expr_parser, pair),
-            Rule::integer_bin => Num(i32::from_str_radix(&pair.as_str()[2..], 2).unwrap()),
-            Rule::integer_oct => Num(i32::from_str_radix(pair.as_str(), 8).unwrap()),
-            Rule::integer_dec => Num(i32::from_str_radix(pair.as_str(), 10).unwrap()),
-            Rule::integer_hex => Num(i32::from_str_radix(&pair.as_str()[2..], 16).unwrap()),
-            Rule::identifier => Identifier(pair.as_str().to_string()),
+            Rule::integer_bin => Num(i32::from_str_radix(&pair.as_str()[2..], 2).unwrap()).into(),
+            Rule::integer_oct => Num(i32::from_str_radix(pair.as_str(), 8).unwrap()).into(),
+            Rule::integer_dec => Num(i32::from_str_radix(pair.as_str(), 10).unwrap()).into(),
+            Rule::integer_hex => Num(i32::from_str_radix(&pair.as_str()[2..], 16).unwrap()).into(),
+            Rule::identifier => Identifier(pair.as_str().to_string()).into(),
             Rule::function_call => {
                 let mut iter = pair.into_inner();
-                FunctionCall(
-                    iter.next().unwrap().as_str().to_string(),
-                    iter.map(|p| parse_expr(expr_parser, p)).collect(),
-                )
+                let id = iter.next().unwrap().as_str().to_string();
+                let arg_list = iter.map(|p| parse_expr(expr_parser, p)).collect();
+                FunctionCall(id, arg_list).into()
             }
             Rule::array_element => {
                 let mut iter = pair.into_inner();
-                ArrayElement(
-                    iter.next().unwrap().as_str().to_string(),
-                    iter.next()
-                        .unwrap()
-                        .into_inner()
-                        .map(|p| parse_expr(expr_parser, p))
-                        .collect(),
-                )
+                let id = iter.next().unwrap().as_str().to_string();
+                let subscripts = iter
+                    .next()
+                    .unwrap()
+                    .into_inner()
+                    .map(|p| parse_expr(expr_parser, p))
+                    .collect();
+                ArrayElement(id, subscripts).into()
             }
             _ => unreachable!(),
         })
         .map_infix(|lhs, op, rhs| match op.as_rule() {
-            Rule::custom_operator => FunctionCall(op.into_inner().as_str().to_string(), vec![lhs, rhs]),
-            Rule::multiply => InfixExpr(Box::new(lhs), Arith(Multiply), Box::new(rhs)),
-            Rule::divide => InfixExpr(Box::new(lhs), Arith(Divide), Box::new(rhs)),
-            Rule::modulus => InfixExpr(Box::new(lhs), Arith(Modulus), Box::new(rhs)),
-            Rule::add => InfixExpr(Box::new(lhs), Arith(Add), Box::new(rhs)),
-            Rule::subtract => InfixExpr(Box::new(lhs), Arith(Subtract), Box::new(rhs)),
+            Rule::custom_operator => FunctionCall(op.into_inner().as_str().to_string(), vec![lhs, rhs]).into(),
+            Rule::multiply => InfixExpr(Box::new(lhs), Arith(Multiply), Box::new(rhs)).into(),
+            Rule::divide => InfixExpr(Box::new(lhs), Arith(Divide), Box::new(rhs)).into(),
+            Rule::modulus => InfixExpr(Box::new(lhs), Arith(Modulus), Box::new(rhs)).into(),
+            Rule::add => InfixExpr(Box::new(lhs), Arith(Add), Box::new(rhs)).into(),
+            Rule::subtract => InfixExpr(Box::new(lhs), Arith(Subtract), Box::new(rhs)).into(),
 
-            Rule::logical_and => InfixExpr(Box::new(lhs), Logic(LogicalAnd), Box::new(rhs)),
-            Rule::logical_or => InfixExpr(Box::new(lhs), Logic(LogicalOr), Box::new(rhs)),
+            Rule::logical_and => InfixExpr(Box::new(lhs), Logic(LogicalAnd), Box::new(rhs)).into(),
+            Rule::logical_or => InfixExpr(Box::new(lhs), Logic(LogicalOr), Box::new(rhs)).into(),
 
-            Rule::bit_left_shift => InfixExpr(Box::new(lhs), Arith(BitLeftShift), Box::new(rhs)),
-            Rule::bit_right_shift => InfixExpr(Box::new(lhs), Arith(BitRightShift), Box::new(rhs)),
-            Rule::bit_xor => InfixExpr(Box::new(lhs), Arith(BirXor), Box::new(rhs)),
-            Rule::bit_and => InfixExpr(Box::new(lhs), Arith(BitAnd), Box::new(rhs)),
-            Rule::bit_or => InfixExpr(Box::new(lhs), Arith(BitOr), Box::new(rhs)),
+            Rule::bit_left_shift => InfixExpr(Box::new(lhs), Arith(BitLeftShift), Box::new(rhs)).into(),
+            Rule::bit_right_shift => InfixExpr(Box::new(lhs), Arith(BitRightShift), Box::new(rhs)).into(),
+            Rule::bit_xor => InfixExpr(Box::new(lhs), Arith(BirXor), Box::new(rhs)).into(),
+            Rule::bit_and => InfixExpr(Box::new(lhs), Arith(BitAnd), Box::new(rhs)).into(),
+            Rule::bit_or => InfixExpr(Box::new(lhs), Arith(BitOr), Box::new(rhs)).into(),
 
-            Rule::equal => InfixExpr(Box::new(lhs), Arith(Equal), Box::new(rhs)),
-            Rule::not_equal => InfixExpr(Box::new(lhs), Arith(NotEqual), Box::new(rhs)),
-            Rule::greater => InfixExpr(Box::new(lhs), Arith(Greater), Box::new(rhs)),
-            Rule::greater_or_equal => InfixExpr(Box::new(lhs), Arith(GreaterOrEqual), Box::new(rhs)),
-            Rule::less => InfixExpr(Box::new(lhs), Arith(Less), Box::new(rhs)),
-            Rule::less_or_equal => InfixExpr(Box::new(lhs), Arith(LessOrEqual), Box::new(rhs)),
+            Rule::equal => InfixExpr(Box::new(lhs), Arith(Equal), Box::new(rhs)).into(),
+            Rule::not_equal => InfixExpr(Box::new(lhs), Arith(NotEqual), Box::new(rhs)).into(),
+            Rule::greater => InfixExpr(Box::new(lhs), Arith(Greater), Box::new(rhs)).into(),
+            Rule::greater_or_equal => InfixExpr(Box::new(lhs), Arith(GreaterOrEqual), Box::new(rhs)).into(),
+            Rule::less => InfixExpr(Box::new(lhs), Arith(Less), Box::new(rhs)).into(),
+            Rule::less_or_equal => InfixExpr(Box::new(lhs), Arith(LessOrEqual), Box::new(rhs)).into(),
 
-            Rule::assignment => InfixExpr(Box::new(lhs), Assign(Assignment), Box::new(rhs)),
-            Rule::add_assignment => InfixExpr(Box::new(lhs), Assign(AddAssign), Box::new(rhs)),
-            Rule::subtract_assignment => InfixExpr(Box::new(lhs), Assign(SubtractAssign), Box::new(rhs)),
-            Rule::multiply_assignment => InfixExpr(Box::new(lhs), Assign(MultiplyAssign), Box::new(rhs)),
-            Rule::bit_and_assignment => InfixExpr(Box::new(lhs), Assign(BitAndAssign), Box::new(rhs)),
-            Rule::bit_or_assignment => InfixExpr(Box::new(lhs), Assign(BitOrAssign), Box::new(rhs)),
-            Rule::bit_xor_assignment => InfixExpr(Box::new(lhs), Assign(BitXorAssign), Box::new(rhs)),
-            Rule::bit_left_shift_assignment => InfixExpr(Box::new(lhs), Assign(BitLeftShiftAssign), Box::new(rhs)),
-            Rule::bit_right_shift_assignment => InfixExpr(Box::new(lhs), Assign(BitRightShiftAssign), Box::new(rhs)),
+            Rule::assignment => InfixExpr(Box::new(lhs), Assign(Assignment), Box::new(rhs)).into(),
+            Rule::add_assignment => InfixExpr(Box::new(lhs), Assign(AddAssign), Box::new(rhs)).into(),
+            Rule::subtract_assignment => InfixExpr(Box::new(lhs), Assign(SubtractAssign), Box::new(rhs)).into(),
+            Rule::multiply_assignment => InfixExpr(Box::new(lhs), Assign(MultiplyAssign), Box::new(rhs)).into(),
+            Rule::bit_and_assignment => InfixExpr(Box::new(lhs), Assign(BitAndAssign), Box::new(rhs)).into(),
+            Rule::bit_or_assignment => InfixExpr(Box::new(lhs), Assign(BitOrAssign), Box::new(rhs)).into(),
+            Rule::bit_xor_assignment => InfixExpr(Box::new(lhs), Assign(BitXorAssign), Box::new(rhs)).into(),
+            Rule::bit_left_shift_assignment => InfixExpr(Box::new(lhs), Assign(BitLeftShiftAssign), Box::new(rhs)).into(),
+            Rule::bit_right_shift_assignment => InfixExpr(Box::new(lhs), Assign(BitRightShiftAssign), Box::new(rhs)).into(),
             _ => unreachable!(),
         })
         .map_prefix(|op, rhs| match op.as_rule() {
-            Rule::prefix_self_increase => UnaryExpr(Others(PrefixSelfIncrease), Box::new(rhs)),
-            Rule::prefix_self_decrease => UnaryExpr(Others(PrefixSelfDecrease), Box::new(rhs)),
-            Rule::logical_not => UnaryExpr(ArithUnary(LogicalNot), Box::new(rhs)),
-            Rule::negative => UnaryExpr(ArithUnary(Negative), Box::new(rhs)),
-            Rule::positive => UnaryExpr(ArithUnary(Positive), Box::new(rhs)),
-            Rule::address_of => UnaryExpr(Others(AddressOf), Box::new(rhs)),
-            Rule::bit_not => UnaryExpr(ArithUnary(BitNot), Box::new(rhs)),
-            Rule::indirection => UnaryExpr(Others(Indirection), Box::new(rhs)),
+            Rule::prefix_self_increase => UnaryExpr(Others(PrefixSelfIncrease), Box::new(rhs)).into(),
+            Rule::prefix_self_decrease => UnaryExpr(Others(PrefixSelfDecrease), Box::new(rhs)).into(),
+            Rule::logical_not => UnaryExpr(ArithUnary(LogicalNot), Box::new(rhs)).into(),
+            Rule::negative => UnaryExpr(ArithUnary(Negative), Box::new(rhs)).into(),
+            Rule::positive => UnaryExpr(ArithUnary(Positive), Box::new(rhs)).into(),
+            Rule::address_of => UnaryExpr(Others(AddressOf), Box::new(rhs)).into(),
+            Rule::bit_not => UnaryExpr(ArithUnary(BitNot), Box::new(rhs)).into(),
+            Rule::indirection => UnaryExpr(Others(Indirection), Box::new(rhs)).into(),
             _ => unreachable!(),
         })
         .map_postfix(|lhs, op| match op.as_rule() {
-            Rule::postfix_self_increase => UnaryExpr(Others(PostfixSelfIncrease), Box::new(lhs)),
-            Rule::postfix_self_decrease => UnaryExpr(Others(PostfixSelfDecrease), Box::new(lhs)),
+            Rule::postfix_self_increase => UnaryExpr(Others(PostfixSelfIncrease), Box::new(lhs)).into(),
+            Rule::postfix_self_decrease => UnaryExpr(Others(PostfixSelfDecrease), Box::new(lhs)).into(),
             _ => unreachable!(),
         })
         .parse(pair.into_inner())
@@ -151,17 +151,11 @@ fn parse_definition(expr_parser: &PrattParser<Rule>, pair: Pair<Rule>) -> Defini
     match pair.as_rule() {
         Rule::const_variable_definition => {
             let mut iter = pair.into_inner();
-            Definition::ConstVariableDefTmp(
-                iter.next().unwrap().as_str().to_string(),
-                parse_expr(expr_parser, iter.next().unwrap()),
-            )
+            Definition::ConstVariableDefTmp(iter.next().unwrap().as_str().to_string(), parse_expr(expr_parser, iter.next().unwrap()))
         }
         Rule::variable_definition => {
             let mut iter = pair.into_inner();
-            Definition::VariableDef(
-                iter.next().unwrap().as_str().to_string(),
-                iter.next().map(|expr| parse_expr(expr_parser, expr)),
-            )
+            Definition::VariableDef(iter.next().unwrap().as_str().to_string(), iter.next().map(|expr| parse_expr(expr_parser, expr)))
         }
         Rule::const_array_definition => {
             let mut iter = pair.into_inner();
