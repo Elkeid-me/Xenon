@@ -1,14 +1,9 @@
-use pest::pratt_parser::{
-    Assoc::{Left, Right},
-    Op, PrattParser,
-};
+use super::ast::{ArithmeticOp::*, ArithmeticUnaryOp::*, AssignOp::*, Expr, ExprInner::*};
+use super::ast::{InfixOp::*, LogicOp::*, OtherUnaryOp::*, UnaryOp::*, *};
+use pest::pratt_parser::Assoc::{Left, Right};
+use pest::pratt_parser::{Op, PrattParser};
 use pest::{iterators::Pair, Parser};
 use pest_derive::Parser;
-
-use super::ast::{
-    ArithmeticOp::*, ArithmeticUnaryOp::*, AssignOp::*, Expr, ExprInner::*, InfixOp::*, LogicOp::*, OtherUnaryOp::*, SimpleType::*,
-    UnaryOp::*, *,
-};
 
 #[derive(Parser)]
 #[grammar = "frontend/sysy.pest"]
@@ -46,8 +41,7 @@ fn new_expr_parser() -> PrattParser<Rule> {
             | Op::prefix(Rule::logical_not)
             | Op::prefix(Rule::negative)
             | Op::prefix(Rule::positive)
-            | Op::prefix(Rule::bit_not)
-            | Op::prefix(Rule::indirection))
+            | Op::prefix(Rule::bit_not))
         .op(Op::postfix(Rule::postfix_self_increase) | Op::postfix(Rule::postfix_self_decrease))
 }
 
@@ -120,9 +114,7 @@ fn parse_expr(expr_parser: &PrattParser<Rule>, pair: Pair<Rule>) -> Expr {
             Rule::logical_not => UnaryExpr(ArithUnary(LogicalNot), Box::new(rhs)).into(),
             Rule::negative => UnaryExpr(ArithUnary(Negative), Box::new(rhs)).into(),
             Rule::positive => UnaryExpr(ArithUnary(Positive), Box::new(rhs)).into(),
-            Rule::address_of => UnaryExpr(Others(AddressOf), Box::new(rhs)).into(),
             Rule::bit_not => UnaryExpr(ArithUnary(BitNot), Box::new(rhs)).into(),
-            Rule::indirection => UnaryExpr(Others(Indirection), Box::new(rhs)).into(),
             _ => unreachable!(),
         })
         .map_postfix(|lhs, op| match op.as_rule() {

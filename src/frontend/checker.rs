@@ -1,8 +1,7 @@
-use super::{
-    ast::{Definition::*, *},
-    expr::types::Type::{self, *},
-};
+use super::ast::{Definition::*, *};
+use super::expr::types::Type::{self, *};
 use std::{collections::HashMap, mem::take, vec};
+
 pub enum SymbolTableItem<'a> {
     ConstVariable(i32),
     Variable,

@@ -1,13 +1,8 @@
-use crate::{
-    frontend::ast::{ExprInner, SimpleType, UnaryOp},
-    risk,
-};
-
-use super::{
-    super::ast::{ArithmeticOp::*, ArithmeticUnaryOp::*, ConstInitListItem, Expr, InfixOp, InfixOp::*, LogicOp::*, UnaryOp::*},
-    super::checker::*,
-    types::Type::{self, Int, Pointer},
-};
+use super::super::ast::{ArithmeticOp::*, ArithmeticUnaryOp::*, ConstInitListItem, Expr, ExprInner};
+use super::super::ast::{InfixOp, InfixOp::*, LogicOp::*, OtherUnaryOp::*, SimpleType, UnaryOp, UnaryOp::*};
+use super::super::checker::*;
+use super::types::Type::{self, Int, Pointer};
+use crate::risk;
 
 use std::{cmp::Ordering, iter::zip, mem::take};
 
@@ -55,13 +50,13 @@ fn __infix_impl<'a>(lhs: &mut Expr, op: &InfixOp, rhs: &mut Expr, context: &'a S
             LogicalAnd => match (lhs_type, lhs_value, rhs_type, rhs_value) {
                 (_, Some(lhs), _, Some(rhs)) => Ok((Int, false, Some((lhs != 0 && rhs != 0) as i32))),
                 (_, Some(value), Int, None) | (Int, None, Int, Some(value)) if value == 0 => Ok((Int, false, Some(0))),
-                (Int, None, Int, None) => Ok((Int, false, None)),
+                (Int, _, Int, _) => Ok((Int, false, None)),
                 _ => Err(format!("{:?} 或 {:?} 不是整数表达式", lhs, rhs)),
             },
             LogicalOr => match (lhs_type, lhs_value, rhs_type, rhs_value) {
                 (_, Some(lhs), _, Some(rhs)) => Ok((Int, false, Some((lhs != 0 || rhs != 0) as i32))),
                 (_, Some(value), Int, None) | (Int, None, Int, Some(value)) if value != 0 => Ok((Int, false, Some(0))),
-                (Int, None, Int, None) => Ok((Int, false, None)),
+                (Int, _, Int, _) => Ok((Int, false, None)),
                 _ => Err(format!("{:?} 或 {:?} 不是整数表达式", lhs, rhs)),
             },
         },
@@ -81,9 +76,10 @@ fn __elem_impl<'a>(subscripts: &mut [Expr], lengths: &'a [usize], context: &'a S
     }
 }
 
-fn __array_impl<'a>(identifier: &String, subscripts: &mut Vec<Expr>, context: &'a SymbolTable) -> Result<ReturnType<'a>, String> {
+fn __array_impl<'a>(identifier: &String, subscripts: &mut [Expr], context: &'a SymbolTable) -> Result<ReturnType<'a>, String> {
     match context.search(identifier) {
         Some(SymbolTableItem::Array(lengths)) => __elem_impl(subscripts, &lengths[1..], context),
+        Some(SymbolTableItem::Pointer(lengths)) => __elem_impl(subscripts, lengths, context),
         Some(SymbolTableItem::ConstArray(lengths, init_list)) => {
             if subscripts.len() != lengths.len() {
                 return Err(format!("{:?} 错误", subscripts));
@@ -116,13 +112,12 @@ fn __array_impl<'a>(identifier: &String, subscripts: &mut Vec<Expr>, context: &'
                 }
             }
         }
-        Some(SymbolTableItem::Pointer(lengths)) => __elem_impl(subscripts, lengths, context),
         _ => Err(format!("{:?} 不能使用下标运算符", identifier)),
     }
 }
 
 fn __unary_impl<'a>(expr: &mut Expr, op: &UnaryOp, context: &'a SymbolTable) -> Result<ReturnType<'a>, String> {
-    let (expr_type, _, expr_value) = expr.const_eval_wrap(context)?;
+    let (expr_type, is_left_value, expr_value) = expr.const_eval_wrap(context)?;
     match op {
         ArithUnary(op) => match (expr_type, expr_value) {
             (_, Some(i)) => {
@@ -137,7 +132,14 @@ fn __unary_impl<'a>(expr: &mut Expr, op: &UnaryOp, context: &'a SymbolTable) -> 
             (Int, None) => Ok((Int, false, None)),
             _ => Err(format!("{:?} 不是整数表达式", expr)),
         },
-        Others(_) => todo!(),
+        Others(PostfixSelfIncrease) | Others(PostfixSelfDecrease) => match (expr_type, is_left_value) {
+            (Int, true) => Ok((Int, false, None)),
+            _ => Err(format!("{:?} 不是左值整型表达式", expr)),
+        },
+        Others(PrefixSelfIncrease) | Others(PrefixSelfDecrease) => match (expr_type, is_left_value) {
+            (Int, true) => Ok((Int, true, None)),
+            _ => Err(format!("{:?} 不是左值整型表达式", expr)),
+        },
     }
 }
 

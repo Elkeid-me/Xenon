@@ -1,7 +1,5 @@
-use std::{
-    fs::{read_to_string, File},
-    io::Write,
-};
+use std::fs::{read_to_string, File};
+use std::io::Write;
 
 mod arg_parse;
 mod frontend;
