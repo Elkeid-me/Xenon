@@ -9,6 +9,7 @@ pub enum SymbolTableItem<'a> {
     Array(&'a Vec<usize>),
     Function(Type<'a>, Vec<Type<'a>>),
     Pointer(&'a Vec<usize>),
+    Keyword,
 }
 
 /// 每个人承担自己的风险！
@@ -22,7 +23,7 @@ macro_rules! risk {
     };
 }
 
-use SymbolTableItem::{Array, ConstArray, ConstVariable, Function, Variable};
+use SymbolTableItem::{Array, ConstArray, ConstVariable, Function, Keyword, Variable};
 
 pub type SymbolTable<'a> = Vec<HashMap<&'a str, SymbolTableItem<'a>>>;
 
@@ -47,6 +48,7 @@ impl<'a> Scope<'a> for SymbolTable<'a> {
 
     fn insert_definition(&mut self, id: &'a str, symbol: SymbolTableItem<'a>) -> Result<(), String> {
         match self.last_mut().unwrap().insert(id, symbol) {
+            Some(Keyword) => Err(format!("标识符 {} 是关键字，不能重定义", id)),
             Some(_) => Err(format!("标识符 {} 在当前作用域中已存在", id)),
             None => Ok(()),
         }
@@ -115,33 +117,38 @@ where
                 if len_prod.len() == 1 || sum % len_prod[0] != 0 {
                     return Err(format!("{:?} 不能是初始化列表", l));
                 }
-                let mut z = 0usize;
-                for i in 0..len_prod.len() - 1 {
-                    if sum % len_prod[i] == 0 {
-                        z = i;
-                    } else {
-                        break;
+                //   对于 `int lint[1][14][51][4]`，我们计算一个列表：`L = {4, 204, 2856, 2856}`，这个数组给出了每一层的大小.
+                //                                                      ^   ^    ^     ^
+                //                                                      |   |    |     |
+                //                                                      0   1    2     3
+                //   rev_depth 给出了列表中第一个不能被 sum 整除的元素的下标.
+                //   rev_depth == 0 -> 错误，即当前已经填充完毕的元素的个数不能被 L[0] 整除
+                //   rev_depth == 1 -> init_list 对应最内层的列表. 譬如 int array[4][3][2]，init_list 对应 int[2].
+                // 而此时需要寻位到 `v` 的第 2 层（以最外层为 1 层），然后 push.
+                //   换句话说，寻位的次数是 l.len() - rev_depth.
+                //   若 sum == 0，则 position 返回 None. unwrap 为 0.
+
+                //   对于 `int lint[1][14][51][4]`，rev_depth == 3 时，意味着 init_list 对应 int[14][51][4]
+                // 需要寻位 0 次
+                let rev_depth = len_prod.iter().position(|prod| sum % prod != 0).unwrap_or(len_prod.len() - 1);
+                let depth = len_prod.len() - rev_depth - 1;
+                let (l, s) = __impl(context, l, &len_prod[0..rev_depth])?;
+                let v_ref = (0..depth).fold(&mut v, |state, _| {
+                    if state.is_empty() {
+                        state.push(T::new_list(Vec::new()));
                     }
-                }
-                let (l, s) = __impl(context, l, &len_prod[0..=z])?;
-                let mut v_ref = &mut v;
-                for _ in z + 2..len_prod.len() {
-                    if v_ref.is_empty() {
-                        v_ref.push(T::new_list(Vec::new()));
-                    }
-                    v_ref = T::get_last(v_ref);
-                }
+                    T::get_last(state)
+                });
                 v_ref.push(T::new_list(l));
                 sum += s;
             }
             InitListItem::Expr(expr) => {
-                let mut v_ref = &mut v;
-                for &i in len_prod.iter().rev().skip(1) {
-                    if v_ref.is_empty() || sum % i == 0 {
-                        v_ref.push(T::new_list(Vec::new()))
+                let v_ref = len_prod.iter().rev().skip(1).fold(&mut v, |state, i| {
+                    if state.is_empty() || sum % i == 0 {
+                        state.push(T::new_list(Vec::new()));
                     }
-                    v_ref = T::get_last(v_ref);
-                }
+                    T::get_last(state)
+                });
                 v_ref.push(T::new_item(expr, context)?);
                 sum += 1;
             }
@@ -201,7 +208,9 @@ fn process_definition<'a>(context: &mut SymbolTable<'a>, def: &'a mut Definition
         }
         ArrayDefTmp { id, lengths, init_list } => {
             for expr in lengths.iter_mut() {
-                expr.const_eval(context)?;
+                if expr.const_eval(context)? <= 0 {
+                    return Err(format!("{:?} 的值小于等于 0", expr));
+                }
             }
             let lengths: Vec<usize> = lengths.iter_mut().map(|p| risk!(p, Expr::Num(i) => *i as usize)).collect();
             let init_list = match init_list {
@@ -275,6 +284,14 @@ pub fn check(mut ast: TranslationUnit) -> Result<TranslationUnit, String> {
         ("putarray", Function(Int, vec![Int, Pointer(&[])])),
         ("starttime", Function(Void, Vec::new())),
         ("stoptime", Function(Void, Vec::new())),
+        ("if", Keyword),
+        ("while", Keyword),
+        ("break", Keyword),
+        ("continue", Keyword),
+        ("return", Keyword),
+        ("int", Keyword),
+        ("const", Keyword),
+        ("void", Keyword),
     ])];
     for i in ast.iter_mut() {
         match i.as_mut() {
