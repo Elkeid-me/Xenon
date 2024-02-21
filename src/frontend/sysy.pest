@@ -45,14 +45,12 @@ postfix_operator      = _{ postfix_self_increase | postfix_self_decrease }
 postfix_self_increase =  { "++" }
 postfix_self_decrease =  { "--" }
 
-prefix_operator      = _{ prefix_self_increase | prefix_self_decrease | logical_not | negative | positive | address_of | indirection | bit_not }
+prefix_operator      = _{ prefix_self_increase | prefix_self_decrease | logical_not | negative | positive | bit_not }
 prefix_self_increase =  { "++" }
 prefix_self_decrease =  { "--" }
 logical_not          =  { "!" }
 negative             =  { "-" }
 positive             =  { "+" }
-address_of           =  { "&" }
-indirection          =  { "*" }
 bit_not              =  { "~" }
 
 infix_operator  = _{ custom_operator | three_char_operator | two_char_operator | single_char_operator }

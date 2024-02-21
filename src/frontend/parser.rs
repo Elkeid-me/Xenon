@@ -1,13 +1,9 @@
-use pest::pratt_parser::{
-    Assoc::{Left, Right},
-    Op, PrattParser,
-};
+use super::ast::{ArithmeticOp::*, ArithmeticUnaryOp::*, AssignOp::*, Expr::*, InfixOp::*, LogicOp::*, OtherUnaryOp::*};
+use super::ast::{UnaryOp::*, *};
+use pest::pratt_parser::Assoc::{Left, Right};
+use pest::pratt_parser::{Op, PrattParser};
 use pest::{iterators::Pair, Parser};
 use pest_derive::Parser;
-
-use super::ast::{
-    ArithmeticOp::*, ArithmeticUnaryOp::*, AssignOp::*, Expr::*, InfixOp::*, LogicOp::*, OtherUnaryOp::*, UnaryOp::*, *,
-};
 
 #[derive(Parser)]
 #[grammar = "frontend/sysy.pest"]
@@ -45,8 +41,7 @@ fn new_expr_parser() -> PrattParser<Rule> {
             | Op::prefix(Rule::logical_not)
             | Op::prefix(Rule::negative)
             | Op::prefix(Rule::positive)
-            | Op::prefix(Rule::bit_not)
-            | Op::prefix(Rule::indirection))
+            | Op::prefix(Rule::bit_not))
         .op(Op::postfix(Rule::postfix_self_increase) | Op::postfix(Rule::postfix_self_decrease))
 }
 
@@ -61,10 +56,7 @@ fn parse_expr(expr_parser: &PrattParser<Rule>, pair: Pair<Rule>) -> Expr {
             Rule::identifier => Identifier(pair.as_str().to_string()),
             Rule::function_call => {
                 let mut iter = pair.into_inner();
-                FunctionCall(
-                    iter.next().unwrap().as_str().to_string(),
-                    iter.map(|p| parse_expr(expr_parser, p)).collect(),
-                )
+                FunctionCall(iter.next().unwrap().as_str().to_string(), iter.map(|p| parse_expr(expr_parser, p)).collect())
             }
             Rule::array_element => {
                 let mut iter = pair.into_inner();
@@ -120,9 +112,7 @@ fn parse_expr(expr_parser: &PrattParser<Rule>, pair: Pair<Rule>) -> Expr {
             Rule::logical_not => UnaryExpr(ArithUnary(LogicalNot), Box::new(rhs)),
             Rule::negative => UnaryExpr(ArithUnary(Negative), Box::new(rhs)),
             Rule::positive => UnaryExpr(ArithUnary(Positive), Box::new(rhs)),
-            Rule::address_of => UnaryExpr(Others(AddressOf), Box::new(rhs)),
             Rule::bit_not => UnaryExpr(ArithUnary(BitNot), Box::new(rhs)),
-            Rule::indirection => UnaryExpr(Others(Indirection), Box::new(rhs)),
             _ => unreachable!(),
         })
         .map_postfix(|lhs, op| match op.as_rule() {
@@ -151,17 +141,11 @@ fn parse_definition(expr_parser: &PrattParser<Rule>, pair: Pair<Rule>) -> Defini
     match pair.as_rule() {
         Rule::const_variable_definition => {
             let mut iter = pair.into_inner();
-            Definition::ConstVariableDefTmp(
-                iter.next().unwrap().as_str().to_string(),
-                parse_expr(expr_parser, iter.next().unwrap()),
-            )
+            Definition::ConstVariableDefTmp(iter.next().unwrap().as_str().to_string(), parse_expr(expr_parser, iter.next().unwrap()))
         }
         Rule::variable_definition => {
             let mut iter = pair.into_inner();
-            Definition::VariableDef(
-                iter.next().unwrap().as_str().to_string(),
-                iter.next().map(|expr| parse_expr(expr_parser, expr)),
-            )
+            Definition::VariableDef(iter.next().unwrap().as_str().to_string(), iter.next().map(|expr| parse_expr(expr_parser, expr)))
         }
         Rule::const_array_definition => {
             let mut iter = pair.into_inner();

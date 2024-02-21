@@ -1,8 +1,7 @@
-use super::{
-    ast::{Definition::*, *},
-    expr::types::Type::{self, *},
-};
+use super::ast::{Definition::*, *};
+use super::expr::types::Type::{self, *};
 use std::{collections::HashMap, mem::take, vec};
+
 pub enum SymbolTableItem<'a> {
     ConstVariable(i32),
     Variable,
@@ -291,10 +290,7 @@ pub fn check(mut ast: TranslationUnit) -> Result<TranslationUnit, String> {
                         for expr in exprs.iter_mut() {
                             expr.const_eval(&context)?;
                         }
-                        *p = Parameter::Pointer(
-                            take(id),
-                            exprs.iter().map(|p| risk!(p, Expr::Num(i) => *i as usize)).collect(),
-                        )
+                        *p = Parameter::Pointer(take(id), exprs.iter().map(|p| risk!(p, Expr::Num(i) => *i as usize)).collect())
                     }
                 }
                 let parameter_type = parameter_list

@@ -149,8 +149,6 @@ pub enum OtherUnaryOp {
     PostfixSelfDecrease,
     PrefixSelfIncrease,
     PrefixSelfDecrease,
-    AddressOf,
-    Indirection,
 }
 #[derive(Debug)]
 pub enum UnaryOp {
