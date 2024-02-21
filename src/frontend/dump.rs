@@ -1,42 +1,54 @@
+use super::ast::{ArithmeticOp::*, ArithmeticUnaryOp::*, AssignOp::*, ExprInner::*, InfixOp::*, LogicOp::*, OtherUnaryOp::*};
+use super::ast::{SimpleType::*, UnaryOp::*, *};
 use std::mem::take;
-
-use super::ast::{
-    ArithmeticOp::*, ArithmeticUnaryOp::*, AssignOp::*, ExprInner::*, InfixOp::*, OtherUnaryOp::*, SimpleType::*, UnaryOp::*, *,
-};
 
 struct Counter {
     value: i32,
 }
 
 impl Counter {
-    fn get(&mut self) -> i32 {
+    fn get(&mut self) -> String {
         self.value += 1;
-        self.value
+        format!("%{}", self.value)
     }
 }
 
-fn dump_array_elem_lvalue(counter: &mut Counter, id: &String, lengths: &Vec<Expr>) -> (String, String) {
-    let mut last_id = id.clone();
-    let str = lengths
+fn dump_array_elem_lvalue(counter: &mut Counter, id: &String, subscripts: &Vec<Expr>, id_is_pointer: bool) -> (String, String) {
+    let mut last_id = format!("%{}", id);
+    let old_id = take(&mut last_id);
+    last_id = counter.get();
+    let (exp_str, exp_id) = dump_expr_rvalue(counter, &subscripts[0]);
+    let first_str = if id_is_pointer {
+        format!("{}    {} = getptr {}, {}\n", exp_str, &last_id, old_id, exp_id)
+    } else {
+        format!("{}    {} = getelemptr {}, {}\n", exp_str, &last_id, old_id, exp_id)
+    };
+    let str: String = subscripts
         .iter()
         .map(|expr| {
             let (exp_str, exp_id) = dump_expr_rvalue(counter, expr);
             let old_id = take(&mut last_id);
-            last_id = format!("%{}", counter.get());
-            format!("{}{} = getelemptr {}, {}\n", exp_str, &last_id, old_id, exp_id)
+            last_id = counter.get();
+            format!("{}    {} = getelemptr {}, {}\n", exp_str, &last_id, old_id, exp_id)
         })
         .collect();
-    (str, last_id)
+    (format!("{}{}", first_str, str), last_id)
 }
 
-fn dump_array_elem_rvalue(counter: &mut Counter, id: &String, lengths: &Vec<Expr>, type_: SimpleType) -> (String, String) {
+fn dump_array_elem_rvalue(
+    counter: &mut Counter,
+    id: &String,
+    subscripts: &Vec<Expr>,
+    type_: SimpleType,
+    id_is_pointer: bool,
+) -> (String, String) {
     match type_ {
         Int => {
-            let (expr_str, expr_id) = dump_array_elem_lvalue(counter, id, lengths);
-            let id = format!("%{}", counter.get());
-            (format!("{}{} = load {}\n", expr_str, id, expr_id), id)
+            let (expr_str, expr_id) = dump_array_elem_lvalue(counter, id, subscripts, id_is_pointer);
+            let id = counter.get();
+            (format!("{}    {} = load {}\n", expr_str, id, expr_id), id)
         }
-        Pointer => dump_array_elem_lvalue(counter, id, lengths),
+        Pointer => dump_array_elem_lvalue(counter, id, subscripts, id_is_pointer),
         _ => unreachable!(),
     }
 }
@@ -50,9 +62,9 @@ fn dump_function_rvalue(counter: &mut Counter, id: &String, args: &Vec<Expr>, ty
     match type_ {
         Int => {
             let tmp_id = counter.get();
-            (format!("{}%{} = call @{}({})\n", arg_str, tmp_id, id, arg_ids), format!("%{}", tmp_id))
+            (format!("{}    %{} = call @{}({})\n", arg_str, tmp_id, id, arg_ids), format!("%{}", tmp_id))
         }
-        Void => ((format!("{}call @{}({})\n", arg_str, id, arg_ids)), "".to_string()),
+        Void => ((format!("{}    call @{}({})\n", arg_str, id, arg_ids)), "".to_string()),
         _ => unreachable!(),
     }
 }
@@ -61,10 +73,61 @@ fn dump_expr_rvalue(counter: &mut Counter, expr: &Expr) -> (String, String) {
     match &expr.inner {
         InfixExpr(_, Assign(op), _) => {
             let (exp_str, exp_id) = dump_expr_lvalue(counter, expr);
-            let id = format!("%{}", counter.get());
-            (format!("{}{} = load {}\n", exp_str, id, exp_id), id)
+            let id = counter.get();
+            (format!("{}    {} = load {}\n", exp_str, id, exp_id), id)
         }
-        InfixExpr(lhs, Logic(op), rhs) => todo!(),
+        InfixExpr(lhs, Logic(LogicalAnd), rhs) => {
+            let (lhs_str, lhs_id) = dump_expr_rvalue(counter, lhs);
+            let (rhs_str, rhs_id) = dump_expr_rvalue(counter, rhs);
+            let lhs_ne_0_id = counter.get();
+            let rhs_ne_0_id = counter.get();
+            let eval_rhs_id = counter.get();
+            let expr_eq_0_id = counter.get();
+            let expr_id = counter.get();
+            let next_id = counter.get();
+            (
+                format!(
+                    r"{lhs_str}{lhs_ne_0_id} = ne {lhs_id}, 0
+br {lhs_ne_0_id}, {eval_rhs_id}, {expr_eq_0_id}
+{expr_eq_0_id}:
+{expr_id} = 0
+jump {next_id}
+{eval_rhs_id}:
+{rhs_str}{rhs_ne_0_id} = ne {rhs_id}, 0
+{expr_id} = and {lhs_ne_0_id}, {rhs_ne_0_id}
+jump {next_id}
+{next_id}:
+"
+                ),
+                expr_id,
+            )
+        }
+        InfixExpr(lhs, Logic(LogicalOr), rhs) => {
+            let (lhs_str, lhs_id) = dump_expr_rvalue(counter, lhs);
+            let (rhs_str, rhs_id) = dump_expr_rvalue(counter, rhs);
+            let lhs_ne_0_id = counter.get();
+            let rhs_ne_0_id = counter.get();
+            let eval_rhs_id = counter.get();
+            let expr_eq_0_id = counter.get();
+            let expr_id = counter.get();
+            let next_id = counter.get();
+            (
+                format!(
+                    r"{lhs_str}{lhs_ne_0_id} = ne {lhs_id}, 0
+br {lhs_ne_0_id}, {expr_eq_0_id}, {eval_rhs_id}
+{expr_eq_0_id}:
+{expr_id} = 1
+jump {next_id}
+{eval_rhs_id}:
+{rhs_str}{rhs_ne_0_id} = ne {rhs_id}, 0
+{expr_id} = or {lhs_ne_0_id}, {rhs_ne_0_id}
+jump {next_id}
+{next_id}:
+"
+                ),
+                expr_id,
+            )
+        }
         InfixExpr(lhs, Arith(op), rhs) => {
             let op_name = match op {
                 Multiply => "mul",
@@ -86,21 +149,24 @@ fn dump_expr_rvalue(counter: &mut Counter, expr: &Expr) -> (String, String) {
             };
             let (lhs_str, lhs_id) = dump_expr_rvalue(counter, lhs);
             let (rhs_str, rhs_id) = dump_expr_rvalue(counter, rhs);
-            let id = format!("%{}", counter.get());
-            (format!("{}{}{} = {} {}, {}\n", lhs_str, rhs_str, id, op_name, lhs_id, rhs_id), id)
+            let id = counter.get();
+            (format!("{lhs_str}{rhs_str}    {id} = {op_name} {lhs_id}, {rhs_id}\n"), id)
         }
-        UnaryExpr(op, exp) => todo!(),
+        UnaryExpr(op, exp) => match op {
+            ArithUnary(_) => todo!(),
+            Others(_) => todo!(),
+        },
         Num(i) => ("".to_string(), i.to_string()),
         Identifier(id) => match expr.type_ {
             Int => {
-                let tmp_id = format!("%{}", counter.get());
-                (format!("{} = load %{}\n", tmp_id, id), tmp_id)
+                let tmp_id = counter.get();
+                (format!("    {} = load %{}\n", tmp_id, id), tmp_id)
             }
             Pointer => ("".to_string(), format!("%{}", id)),
             _ => unreachable!(),
         },
         FunctionCall(id, args) => dump_function_rvalue(counter, id, args, expr.type_),
-        ArrayElement(id, lengths) => dump_array_elem_rvalue(counter, id, lengths, expr.type_),
+        ArrayElement(id, subscripts, id_is_pointer) => dump_array_elem_rvalue(counter, id, subscripts, expr.type_, *id_is_pointer),
     }
 }
 
@@ -109,63 +175,83 @@ fn dump_expr_lvalue(counter: &mut Counter, expr: &Expr) -> (String, String) {
         InfixExpr(lhs, Assign(Assignment), rhs) => {
             let (lhs_str, lhs_id) = dump_expr_lvalue(counter, lhs);
             let (rhs_str, rhs_id) = dump_expr_rvalue(counter, rhs);
-            (format!("{}{}store {}, {}\n", lhs_str, rhs_str, lhs_id, rhs_id), lhs_id)
+            (format!("{}    {}store {}, {}\n", lhs_str, rhs_str, lhs_id, rhs_id), lhs_id)
         }
         InfixExpr(lhs, Assign(op), rhs) => {
             let (lhs_str, lhs_id) = dump_expr_lvalue(counter, lhs);
             let (rhs_str, rhs_id) = dump_expr_rvalue(counter, rhs);
-            (format!("{}{}store {}, {}\n", lhs_str, rhs_str, lhs_id, rhs_id), lhs_id)
+            (format!("{}    {}store {}, {}\n", lhs_str, rhs_str, lhs_id, rhs_id), lhs_id)
         }
         UnaryExpr(Others(PrefixSelfIncrease), expr) => {
             let (expr_str, expr_id) = dump_expr_lvalue(counter, expr);
-            (format!("{} = add {}, 1\nstore {}, {}", expr_str, expr_id, expr_id, expr_id), expr_id)
+            (format!("    {} = add {}, 1\n    store {}, {}", expr_str, expr_id, expr_id, expr_id), expr_id)
         }
         UnaryExpr(Others(PrefixSelfDecrease), expr) => {
             let (expr_str, expr_id) = dump_expr_lvalue(counter, expr);
-            (format!("{} = sub {}, 1\nstore {}, {}", expr_str, expr_id, expr_id, expr_id), expr_id)
+            (format!("    {} = sub {}, 1\n    store {}, {}", expr_str, expr_id, expr_id, expr_id), expr_id)
         }
         Identifier(id) => ("".to_string(), format!("%{}", id)),
-        ArrayElement(id, lengths) => dump_array_elem_lvalue(counter, id, lengths),
+        ArrayElement(id, subscripts, id_is_pointer) => dump_array_elem_lvalue(counter, id, subscripts, *id_is_pointer),
         _ => unreachable!(),
     }
 }
 
-// fn dump_expr_statement(counter: &mut Counter, expr: &Expr) -> String {
-//     match &expr.inner {
-//         InfixExpr(_, Arith(_), _)
-//         | InfixExpr(_, Logic(_), _)
-//         | UnaryExpr(ArithUnary(_), _)
-//         | Num(_)
-//         | Identifier(_)
-//         | ArrayElement(_, _) => "".to_string(),
-//         InfixExpr(_, Assign(_), _) => dump_expr_lvalue(counter, expr).0,
-//         UnaryExpr(Others(PrefixSelfDecrease), expr)
-//         | UnaryExpr(Others(PostfixSelfDecrease), expr) => todo!(),
-//         UnaryExpr(Others(PrefixSelfIncrease), expr)
-//         | UnaryExpr(Others(PostfixSelfIncrease), expr) => todo!(),
-//         FunctionCall(id, args) => todo!(),
-//         _ => todo!(),
-//     }
-// }
-
-fn dump_statement(counter: &mut Counter, statement: &Statement) -> String {
+fn dump_statement(counter: &mut Counter, statement: &Statement, while_id: &str, while_next_id: &str) -> String {
     match statement {
         Statement::Expr(expr) => dump_expr_rvalue(counter, expr).0,
         Statement::If {
             condition,
             then_block,
             else_block,
-        } => todo!(),
-        Statement::While { condition, block } => todo!(),
+        } => {
+            let next_block_id = counter.get();
+            let (cond_str, cond_id) = dump_expr_rvalue(counter, condition);
+            let (then_str, then_id) = dump_block(counter, then_block, while_id, while_next_id);
+            if else_block.is_empty() {
+                format!(
+                    r"{cond_str}    br {cond_id}, {then_id}, {next_block_id}
+{then_id}:
+{then_str}    jump {next_block_id}
+{next_block_id}:
+"
+                )
+            } else {
+                let (else_str, else_id) = dump_block(counter, else_block, while_id, while_next_id);
+                format!(
+                    r"{cond_str}    br {cond_id}, {then_id}, {else_id}
+{then_id}:
+{then_str}    jump {next_block_id}
+{else_id}:
+{else_str}    jump {next_block_id}
+{next_block_id}:
+"
+                )
+            }
+        }
+        Statement::While { condition, block } => {
+            let while_id = counter.get();
+            let while_next_id = counter.get();
+            let (cond_str, cond_id) = dump_expr_rvalue(counter, condition);
+            let (block_str, block_id) = dump_block(counter, block, &while_id, &while_next_id);
+            format!(
+                r"    jump {while_id}
+{block_id}:
+{block_str}    jump {while_id}
+{while_id}:
+{cond_str}    br {cond_id}, {block_id}, {while_next_id}
+{while_next_id}:
+"
+            )
+        }
         Statement::Return(expr) => match expr {
             Some(expr) => {
                 let (expr_str, expr_id) = dump_expr_rvalue(counter, expr);
-                format!("{}ret {}\n", expr_str, expr_id)
+                format!("{}    ret {}\n", expr_str, expr_id)
             }
-            None => "ret\n".to_string(),
+            None => "    ret\n".to_string(),
         },
-        Statement::Break => todo!(),
-        Statement::Continue => todo!(),
+        Statement::Break => format!("    jump {}\n", while_next_id),
+        Statement::Continue => format!("    jump {}\n", while_id),
     }
 }
 
@@ -174,9 +260,14 @@ fn dump_def(counter: &mut Counter, def: &Definition) -> String {
         Definition::VariableDef(id, init) => match init {
             Some(expr) => {
                 let (expr_str, expr_id) = dump_expr_rvalue(counter, expr);
-                format!("{}%{} = alloc i32\nstore %{}, {}\n", expr_str, id, id, expr_id)
+                format!(
+                    r"{expr_str}
+    %{id} = alloc i32
+    store %{id}, {expr_id}
+"
+                )
             }
-            None => format!("%{} = alloc i32\n", id),
+            None => format!("    %{} = alloc i32\n", id),
         },
         Definition::ArrayDef { id, lengths, init_list } => "un impl \n".to_string(),
         Definition::ConstArrayDef { id, lengths, init_list } => "un impl \n".to_string(),
@@ -184,14 +275,14 @@ fn dump_def(counter: &mut Counter, def: &Definition) -> String {
     }
 }
 
-fn dump_block(counter: &mut Counter, block: &Block) -> (String, String) {
-    let id = format!("%{}", counter.get());
+fn dump_block(counter: &mut Counter, block: &Block, while_id: &str, while_next_id: &str) -> (String, String) {
+    let id = counter.get();
     let body: String = block
         .iter()
         .map(|item| match item {
             BlockItem::Def(def) => dump_def(counter, def),
-            BlockItem::Block(block) => "un impl \n".to_string(), // format!("{}\n", dump_block(counter, block)),
-            BlockItem::Statement(statement) => dump_statement(counter, statement),
+            BlockItem::Block(block) => format!("{}\n", dump_block(counter, block, while_id, while_next_id).0),
+            BlockItem::Statement(statement) => dump_statement(counter, statement, while_id, while_next_id),
         })
         .collect();
     (body, id)
@@ -207,6 +298,7 @@ fn dump_function_def(
     fn point_type_str(lengths: &[usize]) -> String {
         lengths
             .iter()
+            .rev()
             .fold("i32".to_string(), |state, len| format!("[{}, {}]", state, len))
     }
     let para_str = parameter_list
@@ -219,7 +311,7 @@ fn dump_function_def(
         .reduce(|l, r| format!("{}, {}", l, r))
         .unwrap_or_default();
 
-    let entry_id = format!("%{}", counter.get());
+    let entry_id = counter.get();
     let para_alloc: String = parameter_list
         .iter()
         .map(|parameter| match parameter {
@@ -229,22 +321,20 @@ fn dump_function_def(
         })
         .collect();
     let return_type_str = if return_void { ": i32" } else { "" };
-    let (block, _) = dump_block(counter, block);
-    format!("fun @{}({}){}{{\n{}:\n{}{}}}\n", id, para_str, return_type_str, entry_id, para_alloc, block)
+    let (block, _) = dump_block(counter, block, "", "");
+    format!("fun @{}({}){} {{\n{}:\n{}{}}}\n", id, para_str, return_type_str, entry_id, para_alloc, block)
 }
 
 pub fn dump_ir(ast: &TranslationUnit) -> String {
     let mut counter = Counter { value: 0 };
-    let prelude = r"
-decl @getint(): i32
+    let prelude = r"decl @getint(): i32
 decl @getch(): i32
 decl @getarray(*i32): i32
 decl @putint(i32): i32
 decl @putch(i32): i32
 decl @putarray(i32, *i32): i32
 decl @starttime(): i32
-decl @stoptime(): i32
-";
+decl @stoptime(): i32";
     let ir: String = ast
         .iter()
         .map(|p| match p.as_ref() {
@@ -257,5 +347,5 @@ decl @stoptime(): i32
             } => dump_function_def(&mut counter, *return_void, id, parameter_list, block),
         })
         .collect();
-    format!("{}{}", prelude, ir)
+    format!("{}\n{}", prelude, ir)
 }

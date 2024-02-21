@@ -76,7 +76,12 @@ fn __elem_impl<'a>(subscripts: &mut [Expr], lengths: &'a [usize], context: &'a S
     }
 }
 
-fn __array_impl<'a>(identifier: &String, subscripts: &mut [Expr], context: &'a SymbolTable) -> Result<ReturnType<'a>, String> {
+fn __array_impl<'a>(
+    identifier: &String,
+    subscripts: &mut Vec<Expr>,
+    context: &'a SymbolTable,
+    id_is_pointer: &mut bool,
+) -> Result<ReturnType<'a>, String> {
     match context.search(identifier) {
         Some(SymbolTableItem::Array(lengths)) => __elem_impl(subscripts, &lengths[1..], context),
         Some(SymbolTableItem::Pointer(lengths)) => __elem_impl(subscripts, lengths, context),
@@ -171,7 +176,9 @@ impl<'a> Expr {
                 }
                 _ => Err(format!("{} 不存在，或不是函数", id)),
             },
-            ExprInner::ArrayElement(identifier, subscripts) => __array_impl(identifier, subscripts, context),
+            ExprInner::ArrayElement(identifier, subscripts, id_is_pointer) => {
+                __array_impl(identifier, subscripts, context, id_is_pointer)
+            }
         }
     }
 

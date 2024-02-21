@@ -164,7 +164,7 @@ pub enum ExprInner {
     Num(i32),
     Identifier(String),
     FunctionCall(String, Vec<Expr>),
-    ArrayElement(String, Vec<Expr>),
+    ArrayElement(String, Vec<Expr>, bool),
 }
 
 #[derive(Debug, Clone, Copy)]

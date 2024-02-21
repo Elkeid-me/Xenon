@@ -69,7 +69,7 @@ fn parse_expr(expr_parser: &PrattParser<Rule>, pair: Pair<Rule>) -> Expr {
                     .into_inner()
                     .map(|p| parse_expr(expr_parser, p))
                     .collect();
-                ArrayElement(id, subscripts).into()
+                ArrayElement(id, subscripts, false).into()
             }
             _ => unreachable!(),
         })
