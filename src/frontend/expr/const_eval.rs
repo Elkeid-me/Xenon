@@ -4,7 +4,7 @@ use super::super::checker::*;
 use super::types::Type::{self, Int, Pointer};
 use crate::risk;
 
-use std::{cmp::Ordering, iter::zip, mem::take};
+use std::{cmp::Ordering, iter::zip};
 
 // 类型, 是否合法, 是否是左值, 编译期计算值 (如果有)
 // 这里, "左值" 的概念即 C 中的可修改左值 (SysY 中的 const 必须为编译期常量表达式)
@@ -84,7 +84,10 @@ fn __array_impl<'a>(
 ) -> Result<ReturnType<'a>, String> {
     match context.search(identifier) {
         Some(SymbolTableItem::Array(lengths)) => __elem_impl(subscripts, &lengths[1..], context),
-        Some(SymbolTableItem::Pointer(lengths)) => __elem_impl(subscripts, lengths, context),
+        Some(SymbolTableItem::Pointer(lengths)) => {
+            *id_is_pointer = true;
+            __elem_impl(subscripts, lengths, context)
+        }
         Some(SymbolTableItem::ConstArray(lengths, init_list)) => {
             if subscripts.len() != lengths.len() {
                 return Err(format!("{:?} 错误", subscripts));
@@ -129,7 +132,6 @@ fn __unary_impl<'a>(expr: &mut Expr, op: &UnaryOp, context: &'a SymbolTable) -> 
                 let value = match op {
                     LogicalNot => (i == 0).into(),
                     Negative => -i,
-                    Positive => i,
                     BitNot => !i,
                 };
                 Ok((Int, false, Some(value)))
@@ -186,9 +188,6 @@ impl<'a> Expr {
         let (type_, is_left_value, value) = self.__const_eval_impl(context)?;
         if let Some(i) = value {
             self.inner = ExprInner::Num(i);
-        }
-        if let ExprInner::UnaryExpr(UnaryOp::ArithUnary(Positive), expr) = &mut self.inner {
-            *self = take(expr);
         }
         self.type_ = match type_ {
             Int => SimpleType::Int,
