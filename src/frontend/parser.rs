@@ -111,7 +111,7 @@ fn parse_expr(expr_parser: &PrattParser<Rule>, pair: Pair<Rule>) -> Expr {
             Rule::prefix_self_decrease => UnaryExpr(Others(PrefixSelfDecrease), Box::new(rhs)),
             Rule::logical_not => UnaryExpr(ArithUnary(LogicalNot), Box::new(rhs)),
             Rule::negative => UnaryExpr(ArithUnary(Negative), Box::new(rhs)),
-            Rule::positive => UnaryExpr(ArithUnary(Positive), Box::new(rhs)),
+            Rule::positive => rhs,
             Rule::bit_not => UnaryExpr(ArithUnary(BitNot), Box::new(rhs)),
             _ => unreachable!(),
         })

@@ -139,7 +139,6 @@ pub enum InfixOp {
 pub enum ArithmeticUnaryOp {
     LogicalNot,
     Negative,
-    Positive,
     BitNot,
 }
 
@@ -150,6 +149,7 @@ pub enum OtherUnaryOp {
     PrefixSelfIncrease,
     PrefixSelfDecrease,
 }
+
 #[derive(Debug)]
 pub enum UnaryOp {
     ArithUnary(ArithmeticUnaryOp),

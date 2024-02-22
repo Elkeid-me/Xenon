@@ -4,7 +4,7 @@ use super::super::checker::*;
 use super::types::Type::{self, Int, Pointer};
 use crate::risk;
 
-use std::{cmp::Ordering, iter::zip, mem::take};
+use std::{cmp::Ordering, iter::zip};
 
 // 类型, 是否合法, 是否是左值, 编译期计算值 (如果有)
 // 这里, "左值" 的概念即 C 中的可修改左值 (SysY 中的 const 必须为编译期常量表达式)
@@ -124,7 +124,6 @@ fn __unary_impl<'a>(expr: &mut Expr, op: &UnaryOp, context: &'a SymbolTable) -> 
                 let value = match op {
                     LogicalNot => (i == 0).into(),
                     Negative => -i,
-                    Positive => i,
                     BitNot => !i,
                 };
                 Ok((Int, false, Some(value)))
@@ -179,9 +178,6 @@ impl<'a> Expr {
         let (type_, is_left_value, value) = self.__const_eval_impl(context)?;
         if let Some(i) = value {
             *self = Expr::Num(i);
-        }
-        if let Expr::UnaryExpr(UnaryOp::ArithUnary(Positive), expr) = self {
-            *self = take(expr);
         }
         Ok((type_, is_left_value, value))
     }
