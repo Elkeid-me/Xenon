@@ -46,19 +46,17 @@ fn __infix_impl<'a>(lhs: &mut Expr, op: &InfixOp, rhs: &mut Expr, context: &'a S
             (Int, _, Int, _) => Ok((Int, false, None)),
             _ => Err(format!("{:?} 或 {:?} 不是整数表达式", lhs, rhs)),
         },
-        Logic(op) => match op {
-            LogicalAnd => match (lhs_type, lhs_value, rhs_type, rhs_value) {
-                (_, Some(lhs), _, Some(rhs)) => Ok((Int, false, Some((lhs != 0 && rhs != 0) as i32))),
-                (_, Some(value), Int, None) | (Int, None, Int, Some(value)) if value == 0 => Ok((Int, false, Some(0))),
-                (Int, _, Int, _) => Ok((Int, false, None)),
-                _ => Err(format!("{:?} 或 {:?} 不是整数表达式", lhs, rhs)),
-            },
-            LogicalOr => match (lhs_type, lhs_value, rhs_type, rhs_value) {
-                (_, Some(lhs), _, Some(rhs)) => Ok((Int, false, Some((lhs != 0 || rhs != 0) as i32))),
-                (_, Some(value), Int, None) | (Int, None, Int, Some(value)) if value != 0 => Ok((Int, false, Some(0))),
-                (Int, _, Int, _) => Ok((Int, false, None)),
-                _ => Err(format!("{:?} 或 {:?} 不是整数表达式", lhs, rhs)),
-            },
+        Logic(LogicalAnd) => match (lhs_type, lhs_value, rhs_type, rhs_value) {
+            (_, Some(lhs), _, Some(rhs)) => Ok((Int, false, Some((lhs != 0 && rhs != 0).into()))),
+            (_, Some(0), Int, _) => Ok((Int, false, Some(0))),
+            (Int, _, Int, _) => Ok((Int, false, None)),
+            _ => Err(format!("{:?} 或 {:?} 不是整数表达式", lhs, rhs)),
+        },
+        Logic(LogicalOr) => match (lhs_type, lhs_value, rhs_type, rhs_value) {
+            (_, Some(lhs), _, Some(rhs)) => Ok((Int, false, Some((lhs != 0 || rhs != 0).into()))),
+            (_, Some(value), Int, _) if value != 0 => Ok((Int, false, Some(1))),
+            (Int, _, Int, _) => Ok((Int, false, None)),
+            _ => Err(format!("{:?} 或 {:?} 不是整数表达式", lhs, rhs)),
         },
     }
 }
