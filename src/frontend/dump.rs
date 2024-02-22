@@ -76,19 +76,24 @@ fn dump_expr_rvalue(counter: &mut Counter, expr: &Expr) -> (String, String) {
             let eval_rhs_id = counter.get();
             let expr_eq_0_id = counter.get();
             let expr_id = counter.get();
+            let tmp_id = counter.get();
+            let expr_store_id = counter.get();
             let next_id = counter.get();
             (
                 format!(
-                    r"{lhs_str}{lhs_ne_0_id} = ne {lhs_id}, 0
-br {lhs_ne_0_id}, {eval_rhs_id}, {expr_eq_0_id}
+                    r"{lhs_str}    {expr_store_id} = alloc i32
+    {lhs_ne_0_id} = ne {lhs_id}, 0
+    br {lhs_ne_0_id}, {eval_rhs_id}, {expr_eq_0_id}
 {expr_eq_0_id}:
-{expr_id} = 0
-jump {next_id}
+    store 0, {expr_store_id}
+    jump {next_id}
 {eval_rhs_id}:
-{rhs_str}{rhs_ne_0_id} = ne {rhs_id}, 0
-{expr_id} = and {lhs_ne_0_id}, {rhs_ne_0_id}
-jump {next_id}
+{rhs_str}    {rhs_ne_0_id} = ne {rhs_id}, 0
+    {tmp_id} = and {lhs_ne_0_id}, {rhs_ne_0_id}
+    store {tmp_id}, {expr_store_id}
+    jump {next_id}
 {next_id}:
+    {expr_id} = load {expr_store_id}
 "
                 ),
                 expr_id,
@@ -100,21 +105,26 @@ jump {next_id}
             let lhs_ne_0_id = counter.get();
             let rhs_ne_0_id = counter.get();
             let eval_rhs_id = counter.get();
-            let expr_eq_0_id = counter.get();
+            let expr_eq_1_id = counter.get();
             let expr_id = counter.get();
+            let tmp_id = counter.get();
+            let expr_store_id = counter.get();
             let next_id = counter.get();
             (
                 format!(
-                    r"{lhs_str}{lhs_ne_0_id} = ne {lhs_id}, 0
-br {lhs_ne_0_id}, {expr_eq_0_id}, {eval_rhs_id}
-{expr_eq_0_id}:
-{expr_id} = 1
-jump {next_id}
+                    r"{lhs_str}    {expr_store_id} = alloc i32
+    {lhs_ne_0_id} = ne {lhs_id}, 0
+    br {lhs_ne_0_id}, {expr_eq_1_id}, {eval_rhs_id}
+{expr_eq_1_id}:
+    store 1, {expr_store_id}
+    jump {next_id}
 {eval_rhs_id}:
-{rhs_str}{rhs_ne_0_id} = ne {rhs_id}, 0
-{expr_id} = or {lhs_ne_0_id}, {rhs_ne_0_id}
-jump {next_id}
+{rhs_str}    {rhs_ne_0_id} = ne {rhs_id}, 0
+    {tmp_id} = or {lhs_ne_0_id}, {rhs_ne_0_id}
+    store {tmp_id}, {expr_store_id}
+    jump {next_id}
 {next_id}:
+    {expr_id} = load {expr_store_id}
 "
                 ),
                 expr_id,
@@ -203,7 +213,7 @@ jump {next_id}
                 .reduce(|(l_str, l_id), (r_str, r_id)| (format!("{}{}", l_str, r_str), format!("{}, {}", l_id, r_id)))
                 .unwrap_or_default();
             let tmp_id = counter.get();
-            (format!("{}    %{} = call @{}({})\n", arg_str, tmp_id, id, arg_ids), format!("%{}", tmp_id))
+            (format!("{}    {} = call @{}({})\n", arg_str, tmp_id, id, arg_ids), tmp_id)
         }
         ArrayElement(id, subscripts, id_is_pointer) => dump_array_elem_rvalue(counter, id, subscripts, expr.type_, *id_is_pointer),
         _ => unreachable!(),
@@ -214,7 +224,7 @@ fn dump_expr_xvalue(counter: &mut Counter, expr: &Expr) -> String {
     match &expr.inner {
         InfixExpr(_, Assign(_), _) => dump_expr_lvalue(counter, expr).0,
         InfixExpr(lhs, Arith(_), rhs) => format!("{}{}", dump_expr_xvalue(counter, lhs), dump_expr_xvalue(counter, rhs)),
-        InfixExpr(_, Logic(_), _) => todo!(),
+        InfixExpr(_, Logic(_), _) => dump_expr_rvalue(counter, expr).0,
         UnaryExpr(_, _) => todo!(),
         Num(_) => String::new(),
         Identifier(_) => String::new(),
@@ -334,6 +344,21 @@ fn dump_def(counter: &mut Counter, def: &Definition) -> String {
     }
 }
 
+fn dump_global_def(counter: &mut Counter, def: &Definition) -> String {
+    match def {
+        Definition::VariableDef(id, init) => match init {
+            Some(expr) => {
+                let (_, expr_id) = dump_expr_rvalue(counter, expr);
+                format!("global %{} = alloc i32, {}\n", id, expr_id)
+            }
+            None => format!("global %{} = alloc i32, 0\n", id),
+        },
+        Definition::ArrayDef { id, lengths, init_list } => "un impl \n".to_string(),
+        Definition::ConstArrayDef { id, lengths, init_list } => "un impl \n".to_string(),
+        _ => String::new(),
+    }
+}
+
 fn dump_block(counter: &mut Counter, block: &Block, while_id: &str, while_next_id: &str) -> (String, String) {
     let id = counter.get();
     let body: String = block
@@ -374,8 +399,8 @@ fn dump_function_def(
     let para_alloc: String = parameter_list
         .iter()
         .map(|parameter| match parameter {
-            Parameter::Int(id) => format!("%{} = alloc i32\nstore %{}, @{}\n", id, id, id),
-            Parameter::Pointer(id, lengths) => format!("%{} = alloc *{}\n    store %{}, @{}\n", id, point_type_str(lengths), id, id),
+            Parameter::Int(id) => format!("%{} = alloc i32\nstore @{}, %{}\n", id, id, id),
+            Parameter::Pointer(id, lengths) => format!("%{} = alloc *{}\n    store @{}, %{}\n", id, point_type_str(lengths), id, id),
             _ => unreachable!(),
         })
         .collect();
@@ -397,7 +422,7 @@ decl @stoptime(): i32";
     let ir: String = ast
         .iter()
         .map(|p| match p.as_ref() {
-            GlobalItem::Def(def) => dump_def(&mut counter, def),
+            GlobalItem::Def(def) => dump_global_def(&mut counter, def),
             GlobalItem::FuncDef {
                 return_void,
                 id,
@@ -406,5 +431,44 @@ decl @stoptime(): i32";
             } => dump_function_def(&mut counter, *return_void, id, parameter_list, block),
         })
         .collect();
+    let ir: Vec<&str> = ir.split('\n').filter(|s| !s.is_empty()).collect();
+    let mut v = Vec::new();
+    let mut flag = false;
+    for i in ir {
+        if i.starts_with("    jump") || i.starts_with("    ret") || i.starts_with("    br") {
+            if !flag {
+                flag = true;
+                v.push(i);
+            }
+        } else {
+            v.push(i);
+            flag = false;
+        }
+    }
+    let mut v_2 = Vec::new();
+    for i in 0..v.len() - 1 {
+        if (v[i].starts_with("    jump") || v[i].starts_with("    ret") || v[i].starts_with("    br"))
+            && (v[i + 1].chars().last().unwrap() != ':' && v[i + 1].chars().last().unwrap() != '}')
+        {
+            v_2.push(format!("{}\n{}:\n", v[i], counter.get()));
+        } else {
+            v_2.push(format!("{}\n", v[i]));
+        }
+    }
+    v_2.push(format!("{}\n", v.last().unwrap()));
+    let mut v_3: Vec<&str> = Vec::new();
+    for i in 0..v_2.len() - 1 {
+        if !(v_2[i].starts_with("    jump") || v_2[i].starts_with("    ret") || v_2[i].starts_with("    br"))
+            && !v_2[i].ends_with("{\n")
+            && (v_2[i + 1].ends_with("}\n") || v_2[i + 1].ends_with(":\n"))
+        {
+            v_3.push(&v_2[i]);
+            v_3.push("    ret\n");
+        } else {
+            v_3.push(&v_2[i]);
+        }
+    }
+    v_3.push(v_2.last().unwrap());
+    let ir: String = v_3.into_iter().collect();
     format!("{}\n{}", prelude, ir)
 }
