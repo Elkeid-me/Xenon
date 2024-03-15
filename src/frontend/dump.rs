@@ -338,8 +338,8 @@ fn dump_def(counter: &mut Counter, def: &Definition) -> String {
             }
             None => format!("    %{} = alloc i32\n", id),
         },
-        Definition::ArrayDef { id, lengths, init_list } => "un impl \n".to_string(),
-        Definition::ConstArrayDef { id, lengths, init_list } => "un impl \n".to_string(),
+        Definition::ArrayDef { id: _, lengths: _, init_list: _ } => "un impl \n".to_string(),
+        Definition::ConstArrayDef { id: _, lengths: _, init_list: _ } => "un impl \n".to_string(),
         _ => String::new(),
     }
 }
@@ -353,8 +353,8 @@ fn dump_global_def(counter: &mut Counter, def: &Definition) -> String {
             }
             None => format!("global %{} = alloc i32, 0\n", id),
         },
-        Definition::ArrayDef { id, lengths, init_list } => "un impl \n".to_string(),
-        Definition::ConstArrayDef { id, lengths, init_list } => "un impl \n".to_string(),
+        Definition::ArrayDef { id: _, lengths: _, init_list: _ } => "un impl \n".to_string(),
+        Definition::ConstArrayDef { id: _, lengths: _, init_list: _ } => "un impl \n".to_string(),
         _ => String::new(),
     }
 }
@@ -450,7 +450,8 @@ decl @stoptime(): i32";
         if (v[i].starts_with("    jump") || v[i].starts_with("    ret") || v[i].starts_with("    br"))
             && (v[i + 1].chars().last().unwrap() != ':' && v[i + 1].chars().last().unwrap() != '}')
         {
-            v_2.push(format!("{}\n{}:\n", v[i], counter.get()));
+            v_2.push(format!("{}\n", v[i]));
+            v_2.push(format!("{}:\n", counter.get()));
         } else {
             v_2.push(format!("{}\n", v[i]));
         }

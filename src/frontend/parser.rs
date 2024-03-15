@@ -182,7 +182,12 @@ fn parse_definition(expr_parser: &PrattParser<Rule>, pair: Pair<Rule>) -> Defini
 fn parse_if_while_helper(expr_parser: &PrattParser<Rule>, pair: Pair<Rule>) -> Block {
     match pair.as_rule() {
         Rule::block => parse_block(expr_parser, pair),
-        Rule::statement => vec![BlockItem::Statement(Box::new(parse_statement(expr_parser, pair)))],
+        Rule::expression
+        | Rule::return_statement
+        | Rule::if_statement
+        | Rule::while_statement
+        | Rule::break_keyword
+        | Rule::continue_keyword => vec![BlockItem::Statement(Box::new(parse_statement(expr_parser, pair)))],
         Rule::empty_statement => Vec::new(),
         Rule::definitions_in_if_or_while_non_block => pair
             .into_inner()
@@ -213,8 +218,7 @@ fn parse_while(expr_parser: &PrattParser<Rule>, pair: Pair<Rule>) -> Statement {
     }
 }
 
-fn parse_statement(expr_parser: &PrattParser<Rule>, pair: Pair<Rule>) -> Statement {
-    let iter = pair.into_inner().next().unwrap();
+fn parse_statement(expr_parser: &PrattParser<Rule>, iter: Pair<Rule>) -> Statement {
     match iter.as_rule() {
         Rule::expression => Statement::Expr(parse_expr(expr_parser, iter)),
         Rule::return_statement => iter
@@ -236,7 +240,12 @@ fn parse_block(expr_parser: &PrattParser<Rule>, pair: Pair<Rule>) -> Block {
         .filter(|pair| !matches!(pair.as_rule(), Rule::int_keyword | Rule::const_keyword))
         .map(|pair| match pair.as_rule() {
             Rule::block => BlockItem::Block(Box::new(parse_block(expr_parser, pair))),
-            Rule::statement => BlockItem::Statement(Box::new(parse_statement(expr_parser, pair))),
+            Rule::expression
+            | Rule::return_statement
+            | Rule::if_statement
+            | Rule::while_statement
+            | Rule::break_keyword
+            | Rule::continue_keyword => BlockItem::Statement(Box::new(parse_statement(expr_parser, pair))),
             Rule::variable_definition | Rule::array_definition | Rule::const_variable_definition | Rule::const_array_definition => {
                 BlockItem::Def(Box::new(parse_definition(expr_parser, pair)))
             }
