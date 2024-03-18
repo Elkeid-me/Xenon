@@ -43,7 +43,7 @@ int main()
     int x = x[0];
     int y = x + 1;
     {
-        int x = x[0];
+        int x = x;
         int z = y + x;
     }
     return x;
@@ -53,8 +53,8 @@ int main()
 
 [Xenon ATC-X](https://github.com/Elkeid-me/ATC-X) 的目标是：
 
-- [ ] 在预处理器中，使用生成器而不是 `String::Replace` 将所有的 `\r\n` 转为 `\n`.
-- [x] 合并 `parser` 与 `checker`
+- [ ] 在预处理器中，使用生成器而不是 `String::replace` 将所有的 `\r\n` 转为 `\n`.
+- [x] 合并 `parser` 与 `checker`.
 - [x] `parser` 中进行更激进的表达式化简，见 [EXPS](https://github.com/Elkeid-me/EXPS).
 - [ ] `parser` 中进行控制流化简.
 - [x] `parser` 中进行名字重整，以支持嵌套作用域. 例如，上面的代码会被重整化为：
@@ -65,11 +65,11 @@ int main()
         int _Ix = _Ax[0];
         int _Iy = _Ix + 1;
         {
-            int _I_Ix = _Ax[0];
+            int _I_Ix = _Ix;
             int _Iz = _Iy + _I_Ix;
         }
         return _Ix;
     }
     ```
 - [ ] 调用 [Koopa IR](https://github.com/pku-minic/koopa) 生成器，而不是直接生成文本 IR.
-- [ ] 寄存器分配
+- [ ] 寄存器分配.
