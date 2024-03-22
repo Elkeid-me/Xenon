@@ -53,7 +53,8 @@ int main()
 
 [Xenon ATC-X](https://github.com/Elkeid-me/ATC-X) 的目标是：
 
-- [ ] 在预处理器中，使用生成器而不是 `String::replace` 将所有的 `\r\n` 转为 `\n`.
+- [x] 在预处理器中，使用生成器而不是 `String::replace` 将所有的 `\r\n` 转为 `\n`.
+- [x] 完全使用生成器的预处理器.
 - [x] 合并 `parser` 与 `checker`.
 - [x] `parser` 中进行更激进的表达式化简，见 [EXPS](https://github.com/Elkeid-me/EXPS).
 - [ ] `parser` 中进行控制流化简.
@@ -71,5 +72,4 @@ int main()
         return _Ix;
     }
     ```
-- [ ] 调用 [Koopa IR](https://github.com/pku-minic/koopa) 生成器，而不是直接生成文本 IR.
 - [ ] 寄存器分配.
