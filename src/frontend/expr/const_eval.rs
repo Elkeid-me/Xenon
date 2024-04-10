@@ -6,8 +6,6 @@ use crate::risk;
 
 use std::{cmp::Ordering, iter::zip};
 
-// 类型, 是否合法, 是否是左值, 编译期计算值 (如果有)
-// 这里, "左值" 的概念即 C 中的可修改左值 (SysY 中的 const 必须为编译期常量表达式)
 type ReturnType<'a> = (Type<'a>, bool, Option<i32>);
 
 fn __infix_impl<'a>(lhs: &mut Expr, op: &InfixOp, rhs: &mut Expr, context: &'a SymbolTable) -> Result<ReturnType<'a>, String> {

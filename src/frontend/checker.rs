@@ -12,7 +12,6 @@ pub enum SymbolTableItem<'a> {
     Keyword,
 }
 
-/// 每个人承担自己的风险！
 #[macro_export]
 macro_rules! risk {
     ($expression:expr, $pattern:pat => $extracted_expression:expr) => {
@@ -117,19 +116,6 @@ where
                 if len_prod.len() == 1 || sum % len_prod[0] != 0 {
                     return Err(format!("{:?} 不能是初始化列表", l));
                 }
-                //   对于 `int lint[1][14][51][4]`，我们计算一个列表：`L = {4, 204, 2856, 2856}`，这个数组给出了每一层的大小.
-                //                                                      ^   ^    ^     ^
-                //                                                      |   |    |     |
-                //                                                      0   1    2     3
-                //   rev_depth 给出了列表中第一个不能被 sum 整除的元素的下标.
-                //   rev_depth == 0 -> 错误，即当前已经填充完毕的元素的个数不能被 L[0] 整除
-                //   rev_depth == 1 -> init_list 对应最内层的列表. 譬如 int array[4][3][2]，init_list 对应 int[2].
-                // 而此时需要寻位到 `v` 的第 2 层（以最外层为 1 层），然后 push.
-                //   换句话说，寻位的次数是 l.len() - rev_depth.
-                //   若 sum == 0，则 position 返回 None. unwrap 为 0.
-
-                //   对于 `int lint[1][14][51][4]`，rev_depth == 3 时，意味着 init_list 对应 int[14][51][4]
-                // 需要寻位 0 次
                 let rev_depth = len_prod.iter().position(|prod| sum % prod != 0).unwrap_or(len_prod.len() - 1);
                 let depth = len_prod.len() - rev_depth - 1;
                 let (l, s) = __impl(context, l, &len_prod[0..rev_depth])?;
