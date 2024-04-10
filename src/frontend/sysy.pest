@@ -109,7 +109,6 @@ if_statement     = { "if" ~ "(" ~ expression ~ ")" ~ (non_block_block_item_in_if
 
 integer_hex = @{ ("0x" | "0X") ~ ASCII_HEX_DIGIT+ }
 integer_dec = @{ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT* }
-// 同时解析八进制整数和 0
 integer_oct = @{ "0" ~ ASCII_OCT_DIGIT* }
 integer_bin = @{ ("0b" | "0B") ~ ASCII_BIN_DIGIT+ }
 

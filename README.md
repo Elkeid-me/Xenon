@@ -56,8 +56,7 @@ int main()
 - [x] 在预处理器中，使用生成器而不是 `String::replace` 将所有的 `\r\n` 转为 `\n`.
 - [x] 完全使用生成器的预处理器.
 - [x] 合并 `parser` 与 `checker`.
-- [x] `parser` 中进行更激进的表达式化简，见 [EXPS](https://github.com/Elkeid-me/EXPS).
-- [ ] `parser` 中进行控制流化简.
+- [x] `parser` 中进行 naive 的表达式化简，见 [EXPS](https://github.com/Elkeid-me/EXPS).
 - [x] `parser` 中进行名字重整，以支持嵌套作用域. 例如，上面的代码会被重整化为：
     ```c
     const int _Ax[1] = {};
@@ -72,4 +71,5 @@ int main()
         return _Ix;
     }
     ```
+- [ ] 死代码消除.
 - [ ] 寄存器分配.
