@@ -27,9 +27,7 @@ fn compile() -> Result<(), Box<dyn std::error::Error>> {
     let code = preprocessor::preprocess(&read_to_string(input)?.replace("\r\n", "\n"));
     let ir = frontend::generate_ir(&code)?;
     let mut f = File::create(output)?;
-    match mode {
-        _ => f.write_fmt(format_args!("{}", ir))?,
-    }
+    f.write_fmt(format_args!("{}", ir))?;
     Ok(())
 }
 

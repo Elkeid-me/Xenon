@@ -130,7 +130,7 @@ fn parse_expr(expr_parser: &PrattParser<Rule>, pair: Pair<Rule>) -> Expr {
             Rule::prefix_self_decrease => UnaryExpr(Others(PrefixSelfDecrease), Box::new(rhs)).into(),
             Rule::logical_not => UnaryExpr(ArithUnary(LogicalNot), Box::new(rhs)).into(),
             Rule::negative => UnaryExpr(ArithUnary(Negative), Box::new(rhs)).into(),
-            Rule::positive => rhs.into(),
+            Rule::positive => rhs,
             Rule::bit_not => UnaryExpr(ArithUnary(BitNot), Box::new(rhs)).into(),
             _ => unreachable!(),
         })
@@ -240,8 +240,7 @@ fn parse_statement(expr_parser: &PrattParser<Rule>, iter: Pair<Rule>) -> Stateme
         Rule::expression => Statement::Expr(parse_expr(expr_parser, iter)),
         Rule::return_statement => iter
             .into_inner()
-            .skip(1)
-            .next()
+            .nth(1)
             .map(|expr| Statement::Return(Some(parse_expr(expr_parser, expr))))
             .unwrap_or(Statement::Return(None)),
         Rule::if_statement => parse_if(expr_parser, iter),
@@ -280,7 +279,7 @@ fn parse_signature(expr_parser: &PrattParser<Rule>, pair: Pair<Rule>) -> (bool, 
         .unwrap()
         .into_inner()
         .map(|pair| match pair.as_rule() {
-            Rule::variable_parameter_definition => Parameter::Int(pair.into_inner().skip(1).next().unwrap().as_str().to_string()),
+            Rule::variable_parameter_definition => Parameter::Int(pair.into_inner().nth(1).unwrap().as_str().to_string()),
             Rule::pointer_parameter_definition => {
                 let mut iter = pair.into_inner().skip(1);
                 Parameter::PointerTmp(

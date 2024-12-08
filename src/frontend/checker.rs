@@ -171,7 +171,7 @@ where
         .iter()
         .rev()
         .scan(1, |l, &r| {
-            *l = *l * r;
+            *l *= r;
             Some(*l)
         })
         .collect();

@@ -465,7 +465,7 @@ decl @stoptime(): i32";
     let mut v_2 = Vec::new();
     for i in 0..v.len() - 1 {
         if (v[i].starts_with("    jump") || v[i].starts_with("    ret") || v[i].starts_with("    br"))
-            && (v[i + 1].chars().last().unwrap() != ':' && v[i + 1].chars().last().unwrap() != '}')
+            && (!v[i + 1].ends_with(':') && !v[i + 1].ends_with('}'))
         {
             v_2.push(format!("{}\n", v[i]));
             v_2.push(format!("{}:\n", counter.get()));
